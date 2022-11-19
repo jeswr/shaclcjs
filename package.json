@@ -15,7 +15,9 @@
     "spec-base-update": "rdf-test-suite spec/parser.js http://w3c.github.io/rdf-tests/sparql11/data-sparql11/manifest-all.ttl -s http://www.w3.org/TR/sparql11-update/ -c .rdf-test-suite-cache/",
     "spec-earl-query": "npm run spec-base-query --silent -- -o earl -p spec/earl-meta.json > spec/earl-query.ttl",
     "spec-earl-update": "npm run spec-base-update --silent -- -o earl -p spec/earl-meta.json > spec/earl-update.ttl",
-    "spec": "npm run spec-base-query -- && npm run spec-base-update -- -e"
+    "spec": "npm run spec-base-query -- && npm run spec-base-update -- -e",
+    "antlr": "antlr4 -Dlanguage=JavaScript MyGrammar.g4",
+    "antlr4ts": "antlr4ts -visitor path/to/MyGrammar.g4"
   },
   "author": "Jesse Wright <jesse.wright@anu.edu.au>",
   "license": "MIT",
@@ -28,6 +30,8 @@
     "url": "https://github.com/jeswr/shaclcjs/issues"
   },
   "devDependencies": {
+    "antlr4": "^4.11.0",
+    "antlr4ts": "^0.5.0-alpha.4",
     "coveralls": "^3.1.0",
     "eslint": "^7.14.0",
     "jison": "^0.4.18",
@@ -37,5 +41,8 @@
   "pre-commit": [
     "build",
     "test"
-  ]
+  ],
+  "dependencies": {
+    "n3": "^1.16.3"
+  }
 }

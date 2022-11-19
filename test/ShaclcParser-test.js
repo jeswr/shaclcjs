@@ -17,12 +17,39 @@ shape ex:PersonShape -> ex:Person {
 	} .
 }`
 
-var parser = new ShaclcParser();
+const { DataFactory, Parser } = require('n3');
+// console.log(DataFactory)
+
+var parser = new ShaclcParser({ factory: DataFactory });
+parser.Parser.factory = DataFactory;
+
+// console.log('hiii')
+
+let i = 0;
+
+parser.Parser.onQuad = (quad) => {
+	console.log(quad.subject?.value, quad.predicate?.value, quad.object?.value)
+	i++;
+}
 
 console.log(parser.parse(testFile));
-console.log(parser.lexer)
+// console.log(parser.lexer)
 
+console.log(i)
 
+const fs = require('fs');
+const path = require('path')
+
+const ttlParser = new Parser();
+
+const quads = ttlParser.parse(
+	fs.readFileSync(path.join(__dirname, 'shape.ttl')).toString()
+)
+
+console.log(quads.length)
+// quads.forEach(quad => {
+// 	console.log(quad.subject?.value, quad.predicate?.value, quad.object?.value)
+// })
 
 // describe('A SHACLC parser', function() {
 //     var parser = new ShaclcParser();

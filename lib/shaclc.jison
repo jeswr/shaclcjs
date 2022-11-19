@@ -16,9 +16,66 @@
       XSD_DECIMAL  = XSD + 'decimal',
       XSD_DOUBLE   = XSD + 'double',
       XSD_BOOLEAN  = XSD + 'boolean';
-  var base = '', basePath = '', baseRoot = '';
+  var base = '', basePath = '', baseRoot = '', currentNodeShape, currentPropertyNode;
 
-    const SH = "http://www.w3.org/ns/shacl#"
+    const SH = "http://www.w3.org/ns/shacl#";
+    const OWL = "http://www.w3.org/2002/07/owl#";
+
+    Parser.prefixes = {
+      rdf: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+      rdfs: 'http://www.w3.org/2000/01/rdf-schema#',
+      sh: SH,
+      xsd: 'http://www.w3.org/2001/XMLSchema#'
+    }
+
+    const datatypes = {
+      [XSD_INTEGER]: true,
+      [XSD_DECIMAL]: true,
+      [XSD + 'float']: true,
+      [XSD_DOUBLE]: true,
+      [XSD + 'string']: true,
+      [XSD_BOOLEAN]: true,
+      [XSD + 'dateTime']: true,
+      [XSD + 'nonPositiveInteger']: true,
+      [XSD + 'negativeInteger']: true,
+      [XSD + 'long']: true,
+      [XSD + 'int']: true,
+      [XSD + 'short']: true,
+      [XSD + 'byte']: true,
+      [XSD + 'nonNegativeInteger']: true,
+      [XSD + 'unsignedLong']: true,
+      [XSD + 'unsignedShort']: true,
+      [XSD + 'unsignedByte']: true,
+      [XSD + 'positiveInteger']: true,
+    }
+
+    function addList(elems) {
+                        const list = head = blank();
+                        let i = 0, l = elems.length;
+
+                        if (l === 0) {
+                          // TODO: see if this should be here 
+                          Parser.factory.quad(
+                            head, Parser.factory.namedNode(RDF_REST),  Parser.factory.namedNode(RDF_NIL)
+                          )
+                        }
+
+                        elems.forEach(elem => {
+                          Parser.onQuad(
+                            Parser.factory.quad(
+                              head, Parser.factory.namedNode(RDF_FIRST), elem
+                            )
+                          )
+
+                          Parser.onQuad(
+                            Parser.factory.quad(
+                              head, Parser.factory.namedNode(RDF_REST),  head = ++i < l ? blank() : Parser.factory.namedNode(RDF_NIL)
+                            )
+                          )
+                        })
+
+                        return list;
+                      }
 
   // Returns a lowercase version of the given string
   function lowercase(string) {
@@ -436,48 +493,310 @@ PARAM                   'deactivated' | 'severity' | 'message' | 'class' | 'data
 shaclDoc            : directive* (nodeShape|shapeClass)* EOF;
 
 directive           : baseDecl | importsDecl | prefixDecl ;
-baseDecl            : KW_BASE  IRIREF ;
-importsDecl         : KW_IMPORTS IRIREF ;
+baseDecl            : KW_BASE  IRIREF 
+                    {
+                      Parser.base = Parser.factory.namedNode($2.slice(1, -1));
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          Parser.base,
+                          Parser.factory.namedNode(RDF + 'type'),
+                          Parser.factory.namedNode(OWL + 'Ontology')
+                        )
+                      )
+                    }
+                    ;
+importsDecl         : KW_IMPORTS IRIREF
+                    {
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          Parser.base,
+                          Parser.factory.namedNode(OWL + 'imports'),
+                          Parser.factory.namedNode($2.slice(1, -1))
+                        )
+                      )
+                    }
+                    ;
 prefixDecl          : KW_PREFIX PNAME_NS IRIREF 
                     {
-                        if (!Parser.prefixes) Parser.prefixes = {};
+                        // if (!Parser.prefixes) Parser.prefixes = {
+                        //   rdf: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+                        //   rdfs: 'http://www.w3.org/2000/01/rdf-schema#',
+                        //   sh: 'http://www.w3.org/ns/shacl#',
+                        //   xsd: 'http://www.w3.org/2001/XMLSchema#'
+                        // };
                         $2 = $2.substr(0, $2.length - 1);
                         $3 = resolveIRI($3);
                         Parser.prefixes[$2] = $3;
                     }
                     ;
 
-nodeShape           : KW_SHAPE iri targetClass? nodeShapeBody ;
+nodeShapeIri        : iri
+                    {
+                      // console.log('iri is', $1)
+                      currentNodeShape = $1
+                    }
+                    ;
+
+nodeShape           : KW_SHAPE nodeShapeIri targetClass? nodeShapeBody
+                    {
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          currentNodeShape,
+                          Parser.factory.namedNode(RDF + 'type'),
+                          Parser.factory.namedNode(SH + 'NodeShape')
+                        )
+                      )
+
+                      if ($3) {
+                        for (const node of $3) {
+                          Parser.onQuad(
+                            Parser.factory.quad(
+                            currentNodeShape,
+                            Parser.factory.namedNode(SH + 'targetClass'),
+                            node
+                          )
+                      )  
+                        }
+                      }
+                      
+                      // console.log($2, $3, $4)
+                    }
+                    ;
 shapeClass          : KW_SHAPE_CLASS iri nodeShapeBody ;
-nodeShapeBody       : '{' constraint* '}';
-targetClass         : '->' iri+ ;
+
+startNodeShape      : '{'
+                    {
+                      // TODO: Push a new nodeShape blankNode here when we are on a nested shape
+                      // and mint a sh:node triple
+                      console.log('>'.repeat(10))
+                    }
+                    ;
+
+endNodeShape        : '}'
+                    {
+                      // TODO: Pop the new nodeShape blankNode here
+                      console.log('<'.repeat(10))
+                    }
+                    ;
+
+nodeShapeBody       : startNodeShape constraint* endNodeShape;
+targetClass         : '->' iri+
+                    {
+                      $$ = $2
+                    };
 
 constraint          : ( nodeOr+ | propertyShape ) '.' ;
 nodeOr              : nodeNot ( '|' nodeNot) * ;
 nodeNot             : negation? nodeValue ;
-nodeValue           : nodeParam '=' iriOrLiteralOrArray ;
+nodeValue           : nodeParam '=' iriOrLiteralOrArray
+                    {
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          currentNodeShape,
+                          Parser.factory.namedNode(SH + $1),
+                          $3
+                        )
+                      )
+                      
+                      
+                      
+                      
+                      
+                      // Parser.factory.namedNode(SH + $1)
+                      
+                      // console.log('node param', $1)
+                    }
+                    ;
 
 propertyShape       : path ( propertyCount | propertyOr )* ;
 propertyOr          : propertyNot ( '|' propertyNot) * ;
 propertyNot         : negation? propertyAtom ;
 propertyAtom        : propertyType | nodeKind | shapeRef | propertyValue | nodeShapeBody ;
 propertyCount       : '[' propertyMinCount '..' propertyMaxCount ']' ;
-propertyMinCount    : INTEGER ;
-propertyMaxCount    : (INTEGER | '*') ;
-propertyType        : iri ;
-nodeKind            : NODEKIND ;
+propertyMinCount    : INTEGER
+                    {
+                      if ($1 > 0)
+                        Parser.onQuad(
+                          Parser.factory.quad(
+                            currentPropertyNode,
+                            Parser.factory.namedNode(SH + 'minCount'),
+                            createTypedLiteral($1, XSD_INTEGER)
+                          )
+                        )
+                    }
+                    ;
+propertyMaxCount    : INTEGER
+                    {
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          currentPropertyNode,
+                          Parser.factory.namedNode(SH + 'maxCount'),
+                          createTypedLiteral($1, XSD_INTEGER)
+                        )
+                      )
+                    }
+                    | '*'
+                    ;
+propertyType        : iri
+                    {
+                      // datatypes[$1.value]
+                      
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          currentPropertyNode,
+                          Parser.factory.namedNode(SH + (datatypes[$1.value] ? 'datatype' : 'class')),
+                          $1
+                        )
+                      )
+                      // console.log('property', $1)
+                    }
+                    ;
+nodeKind            : NODEKIND
+                    {
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          currentPropertyNode,
+                          Parser.factory.namedNode(SH + 'nodeKind'),
+                          Parser.factory.namedNode(SH + $1),
+                        )
+                      )
+                    }
+                    ;
 shapeRef            : ATPNAME_LN | ATPNAME_NS | '@' IRIREF ;
-propertyValue       : propertyParam '=' iriOrLiteralOrArray ;
+propertyValue       : propertyParam '=' iriOrLiteralOrArray
+                    {
+                      // console.log(currentPropertyNode, $1, $3)
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          currentPropertyNode,
+                          Parser.factory.namedNode(SH + $1),
+                          $3
+                        )
+                      )
+                    }
+                    ;
 negation            : '!' ;
 
-path                : pathAlternative ;
-pathAlternative     : pathSequence ( '|' pathSequence )* ;
-pathSequence        : pathEltOrInverse ( '/' pathEltOrInverse )* ;
-pathElt             : pathPrimary pathMod? ;
-pathEltOrInverse    : pathElt | pathInverse pathElt ;
+path                : pathAlternative
+                    {
+                      
+                      // currentPropertyNode = blank();
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          // In the grammar a path signals the start of a new property declaration
+                          currentNodeShape,
+                          Parser.factory.namedNode(SH + 'property'),
+                          currentPropertyNode = blank(),
+                        )
+                      )
+                      
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          // In the grammar a path signals the start of a new property declaration
+                          currentPropertyNode,
+                          Parser.factory.namedNode(SH + 'path'),
+                          $1
+                        )
+                      )
+
+                      // console.log(currentPropertyNode)
+                    }
+                    ;
+
+additionalAlternative : '|' pathSequence -> $2
+                      ;
+
+pathAlternative     : pathSequence
+                    | pathSequence additionalAlternative+
+                    {
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          $$ = blank(),
+                          Parser.factory.namedNode(SH + 'alternativePath'),
+                          addList([$1, ...$2])
+                        )
+                      )
+                    }
+                    ;
+
+additionalSequence : '/' pathEltOrInverse -> $2
+                    ;
+
+pathSequence        : pathEltOrInverse
+                    | pathEltOrInverse additionalSequence+
+                    {
+                      
+                      
+                      
+                      $$ = addList([$1, ...$2])
+                      
+                      
+                      // 
+                      // console.log('seq')
+                    }
+                    // {
+                    //   console.log('seq', $1, $2)
+                    // }
+                    ;
+pathElt             : pathPrimary pathMod? 
+                    {
+                      if ($2) {
+                        Parser.onQuad(
+                        Parser.factory.quad(
+                          $$ = blank(),
+                          $2,
+                          $1
+                        )
+                      )
+                      } else {
+                        $$ = $1
+                      }
+                    }
+                    ;
+pathEltOrInverse    : pathElt
+                    | pathInverse pathElt 
+                    {
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          $$ = blank(),
+                          Parser.factory.namedNode(SH + 'inversePath'),
+                          $2
+                        )
+                      )
+                    }
+                    ;
 pathInverse         : '^' ;
-pathMod             : '?' | '*' | '+' ;
-pathPrimary         : iri | '(' path ')' ;
+pathMod             : '?' -> Parser.factory.namedNode(SH + 'zeroOrOnePath')
+                    | '*' -> Parser.factory.namedNode(SH + 'zeroOrMorePath')
+                    | '+' -> Parser.factory.namedNode(SH + 'oneOrMorePath')
+                    ;
+
+pathPrimary         : iri
+                    | '(' path ')'
+                    {
+                      console.log('path', $2)
+                      
+                      // TODO: Refactor this
+                      // var list = head = blank();
+                      // let i = 0, l = $2?.length;
+
+                      // $2?.forEach(elem => {
+                      //   Parser.onQuad(
+                      //     Parser.factory.quad(
+                      //       head, Parser.factory.namedNode(RDF_FIRST), elem
+                      //     )
+                      //   )
+
+                      //   Parser.onQuad(
+                      //     Parser.factory.quad(
+                      //       head, Parser.factory.namedNode(RDF_REST),  head = ++i < l ? blank() : Parser.factory.namedNode(RDF_NIL)
+                      //     )
+                      //   )
+                      // })
+
+                      // $$ = list
+                    }
+                    ;
 
 iriOrLiteralOrArray : iriOrLiteral | array ;
 iriOrLiteral        : iri | literal ;
@@ -491,6 +810,7 @@ iri
           expansion = Parser.prefixes[prefix];
       if (!expansion) throw new Error('Unknown prefix: ' + prefix);
       var uriString = resolveIRI(expansion + $1.substr(namePos + 1));
+      // console.log(Parser)
       $$ = Parser.factory.namedNode(uriString);
     }
     | PNAME_NS
@@ -502,13 +822,24 @@ iri
     }
     ;
 
-literal             : rdfLiteral | numericLiteral | booleanLiteral ;
+literal             : rdfLiteral
+                    | numericLiteral
+                    | booleanLiteral -> createTypedLiteral($1.toLowerCase(), XSD_BOOLEAN)
+                    ;
 
 booleanLiteral      : KW_TRUE | KW_FALSE ;
 
-numericLiteral      : INTEGER | DECIMAL | DOUBLE ;
+numericLiteral      : INTEGER -> createTypedLiteral($1, XSD_INTEGER)
+                    | DECIMAL -> createTypedLiteral($1, XSD_DECIMAL)
+                    | DOUBLE -> createTypedLiteral($1.toLowerCase(), XSD_DOUBLE)
+                    ;
 
-rdfLiteral          : string (LANGTAG | '^^' datatype)? ;
+rdfLiteral       
+    : string -> createTypedLiteral($1)
+    // TODO: check this
+    | string LANGTAG  -> createLangLiteral($1, lowercase($2.substr(1)))
+    | string '^^' iri -> createTypedLiteral($1, $3)
+    ;
 
 datatype            : iri ;
 
@@ -519,7 +850,40 @@ string
     | STRING_LITERAL_LONG2 -> unescapeString($1, 3)
     ;
 
-array               : '[' iriOrLiteral* ']' ;
+array               : '[' iriOrLiteral* ']'
+                    {
+                      // var list = head = blank();
 
-nodeParam           : TARGET | PARAM ;
-propertyParam       : PARAM ;
+                      
+
+
+                      // let i = 0, l = $2?.length;
+
+                      // $2?.forEach(elem => {
+                      //   Parser.onQuad(
+                      //     Parser.factory.quad(
+                      //       head, Parser.factory.namedNode(RDF_FIRST), elem
+                      //     )
+                      //   )
+
+                      //   Parser.onQuad(
+                      //     Parser.factory.quad(
+                      //       head, Parser.factory.namedNode(RDF_REST),  head = ++i < l ? blank() : Parser.factory.namedNode(RDF_NIL)
+                      //     )
+                      //   )
+                      // })
+
+                      $$ = addList($2)
+                    }
+                    ;
+
+nodeParam           : TARGET | PARAM 
+                    // {
+                    //   $$ = $1
+                    // }
+                    ;
+propertyParam       : PARAM
+                    // {
+                    //   console.log('property param', $1, blank())
+                    // }
+                    ;
