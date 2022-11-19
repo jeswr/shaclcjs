@@ -16,7 +16,7 @@
       XSD_DECIMAL  = XSD + 'decimal',
       XSD_DOUBLE   = XSD + 'double',
       XSD_BOOLEAN  = XSD + 'boolean';
-  var base = '', basePath = '', baseRoot = '', currentNodeShape, currentPropertyNode;
+  var base = '', basePath = '', baseRoot = '', currentNodeShape, currentPropertyNode, nodeShapeStack = [];
 
     const SH = "http://www.w3.org/ns/shacl#";
     const OWL = "http://www.w3.org/2002/07/owl#";
@@ -566,16 +566,37 @@ shapeClass          : KW_SHAPE_CLASS iri nodeShapeBody ;
 
 startNodeShape      : '{'
                     {
+                      if (nodeShapeStack.length === 0) {
+                        nodeShapeStack.push(currentNodeShape);
+                      } else {
+                        // nodeShapeStack.push(currentNodeShape = blank());
+                        Parser.onQuad(
+                          Parser.factory.quad(
+                            // In the grammar a path signals the start of a new property declaration
+                            currentPropertyNode,
+                            Parser.factory.namedNode(SH + 'node'),
+                            currentNodeShape = blank(),
+                          )
+                        )
+                        nodeShapeStack.push(currentNodeShape);
+                      }
+                      
+                      
                       // TODO: Push a new nodeShape blankNode here when we are on a nested shape
                       // and mint a sh:node triple
-                      console.log('>'.repeat(10))
+                      // console.log('>'.repeat(10))
                     }
                     ;
 
 endNodeShape        : '}'
                     {
+                      if (nodeShapeStack.length > 0) {
+                        currentNodeShape = nodeShapeStack.pop();
+                      }
+                      
+                      
                       // TODO: Pop the new nodeShape blankNode here
-                      console.log('<'.repeat(10))
+                      // console.log('<'.repeat(10))
                     }
                     ;
 
@@ -586,8 +607,34 @@ targetClass         : '->' iri+
                     };
 
 constraint          : ( nodeOr+ | propertyShape ) '.' ;
-nodeOr              : nodeNot ( '|' nodeNot) * ;
-nodeNot             : negation? nodeValue ;
+
+orNotComponent      : '|' nodeNot -> $2
+                    ;
+
+nodeOr              : nodeNot
+                    | nodeNot orNotComponent+
+                    {
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          $$ = blank(),
+                          Parser.factory.namedNode(SH + $1),
+                          addList([$1, ...$2])
+                        )
+                      )
+                    }
+                    ;
+nodeNot             : nodeValue
+                    | negation nodeValue
+                    {
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          $$ = blank(),
+                          Parser.factory.namedNode(SH + 'not'),
+                          $1
+                        )
+                      )
+                    }
+                    ;
 nodeValue           : nodeParam '=' iriOrLiteralOrArray
                     {
                       Parser.onQuad(
@@ -609,8 +656,39 @@ nodeValue           : nodeParam '=' iriOrLiteralOrArray
                     ;
 
 propertyShape       : path ( propertyCount | propertyOr )* ;
-propertyOr          : propertyNot ( '|' propertyNot) * ;
-propertyNot         : negation? propertyAtom ;
+
+propertyOrComponent : '|' propertyNot -> $2
+                    ;
+
+propertyOr          : propertyNot
+                    | propertyNot propertyOrComponent+ 
+                    {
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          $$ = blank(),
+                          Parser.factory.namedNode(SH + 'or'),
+                          addList([$1, ...$2])
+                        )
+                      )
+                    }
+                    ;
+
+
+propertyNot         : propertyAtom
+                    | negation propertyAtom
+                    {
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          $$ = blank(),
+                          Parser.factory.namedNode(SH + 'not'),
+                          $1
+                        )
+                      )
+                    }
+                    ;
+
+
+
 propertyAtom        : propertyType | nodeKind | shapeRef | propertyValue | nodeShapeBody ;
 propertyCount       : '[' propertyMinCount '..' propertyMaxCount ']' ;
 propertyMinCount    : INTEGER
@@ -662,7 +740,13 @@ nodeKind            : NODEKIND
                       )
                     }
                     ;
-shapeRef            : ATPNAME_LN | ATPNAME_NS | '@' IRIREF ;
+
+// TODO: Implement this
+shapeRef            : '@' PNAME_NS PN_LOCAL 
+                    | '@' PN_PREFIX? ':'
+                    | '@' IRIREF
+                    ;
+
 propertyValue       : propertyParam '=' iriOrLiteralOrArray
                     {
                       // console.log(currentPropertyNode, $1, $3)
