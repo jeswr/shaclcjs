@@ -28,6 +28,7 @@
       xsd: 'http://www.w3.org/2001/XMLSchema#'
     }
 
+    // TODO: Make sure all SPARQL supported datatypes are here
     const datatypes = {
       [XSD_INTEGER]: true,
       [XSD_DECIMAL]: true,
@@ -47,6 +48,7 @@
       [XSD + 'unsignedShort']: true,
       [XSD + 'unsignedByte']: true,
       [XSD + 'positiveInteger']: true,
+      [RDF + 'langString']: true
     }
 
     function addList(elems) {
@@ -555,7 +557,7 @@ nodeShape           : KW_SHAPE nodeShapeIri targetClass? nodeShapeBody
                             Parser.factory.namedNode(SH + 'targetClass'),
                             node
                           )
-                      )  
+                        )  
                         }
                       }
                       
@@ -681,7 +683,7 @@ propertyNot         : propertyAtom
                         Parser.factory.quad(
                           $$ = blank(),
                           Parser.factory.namedNode(SH + 'not'),
-                          $1
+                          $2
                         )
                       )
                     }
@@ -689,7 +691,12 @@ propertyNot         : propertyAtom
 
 
 
-propertyAtom        : propertyType | nodeKind | shapeRef | propertyValue | nodeShapeBody ;
+propertyAtom        : propertyType
+                    | nodeKind
+                    | shapeRef
+                    | propertyValue
+                    | nodeShapeBody 
+                    ;
 propertyCount       : '[' propertyMinCount '..' propertyMaxCount ']' ;
 propertyMinCount    : INTEGER
                     {
@@ -719,6 +726,8 @@ propertyType        : iri
                     {
                       // datatypes[$1.value]
                       
+                      // TODO: See if the problem of datatype is occuring here
+                      // NOTE: This *is* the clase of the shapeRef class problem
                       Parser.onQuad(
                         Parser.factory.quad(
                           currentPropertyNode,
@@ -740,11 +749,44 @@ nodeKind            : NODEKIND
                       )
                     }
                     ;
+shapeRef            : ATPNAME_LN
+                    {
+                      const ind = $1.indexOf(':');
 
-// TODO: Implement this
-shapeRef            : '@' PNAME_NS PN_LOCAL 
-                    | '@' PN_PREFIX? ':'
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          currentPropertyNode,
+                          Parser.factory.namedNode(SH + 'node'),
+                          // TODO: See if we should be doing resolve iri here
+                          Parser.factory.namedNode(Parser.prefixes[$1.slice(1, ind)] + $1.slice(ind + 1)),
+                        )
+                      )
+
+                      // TODO: See if we should be doing resolve iri here
+                      // console.log('1', Parser.prefixes[$1.slice(1, ind)] + $1.slice(ind + 1))
+                    }
+                    | ATPNAME_NS
+                    {
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          currentPropertyNode,
+                          Parser.factory.namedNode(SH + 'node'),
+                          // TODO: Add test for this
+                          Parser.factory.namedNode(Parser.prefixes[$1.slice(1, $1.length - 1)]),
+                        )
+                      )
+                    }
                     | '@' IRIREF
+                    {
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          currentPropertyNode,
+                          Parser.factory.namedNode(SH + 'node'),
+                          // TODO: Add test for this
+                          Parser.factory.namedNode(resolveIRI($2)),
+                        )
+                      )
+                    } //-> Parser.factory.namedNode(resolveIRI($2))
                     ;
 
 propertyValue       : propertyParam '=' iriOrLiteralOrArray
@@ -962,12 +1004,13 @@ array               : '[' iriOrLiteral* ']'
                     ;
 
 nodeParam           : TARGET | PARAM 
-                    // {
-                    //   $$ = $1
-                    // }
+                    {
+                      // $$ = $1
+                      console.log('node param', $1)
+                    }
                     ;
 propertyParam       : PARAM
-                    // {
-                    //   console.log('property param', $1, blank())
-                    // }
+                    {
+                      console.log('property param', $1, blank())
+                    }
                     ;
