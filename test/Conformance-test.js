@@ -89,6 +89,7 @@ for (const file of testFile) {
 
     // console.log('boo')
     i++;
+    console.log(shaclc)
   }
 
   // console.log(shaclc)

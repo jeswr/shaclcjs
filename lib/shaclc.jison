@@ -696,6 +696,7 @@ propertyOr          : propertyNot
                     }
                     | propertyNot propertyOrComponent+ 
                     {
+                      console.log('property not with or component')
                       Parser.onQuad(
                         Parser.factory.quad(
                           $$ = blank(),
@@ -714,6 +715,7 @@ propertyNot         : propertyAtom
                     }
                     | negation propertyAtom
                     {
+                      console.log('negated property atom')
                       Parser.onQuad(
                         Parser.factory.quad(
                           $$ = blank(),
@@ -728,27 +730,31 @@ propertyNot         : propertyAtom
 
 propertyAtom        : propertyType
                     {
-                      console.log('proeprty type', $1)
+                      console.log('[a] proeprty type', $1)
                       $$ = $1
                     }
                     | nodeKind
                     {
-                      console.log('node kind')
+                      console.log('[a] node kind', $1)
                     }
                     | shapeRef
                     {
-                      console.log('shape ref')
+                      console.log('[a] shape ref', $1)
                     }
                     | propertyValue
                     {
-                      console.log('proeprty value')
+                      console.log('[a] proeprty value', $1)
                     }
                     | nodeShapeBody 
                     {
-                      console.log('node shape body')
+                      console.log('[a] node shape body', $1)
                     }
                     ;
-propertyCount       : '[' propertyMinCount '..' propertyMaxCount ']' ;
+propertyCount       : '[' propertyMinCount '..' propertyMaxCount ']' 
+                    {
+                      console.log('property count')
+                    }
+                    ;
 propertyMinCount    : INTEGER
                     {
                       if ($1 > 0)
@@ -775,7 +781,7 @@ propertyMaxCount    : INTEGER
                     ;
 propertyType        : iri
                     {
-                      console.log('property type')
+                      console.log('[property type] property type', $1)
                       // datatypes[$1.value]
                       
                       // TODO: See if the problem of datatype is occuring here
@@ -997,7 +1003,7 @@ iriOrLiteral        : iri | literal
 iri
     : IRIREF
     {
-      console.log('iriref', $1)
+      console.log('iriref [:)]', $1)
       $$ = Parser.factory.namedNode(resolveIRI($1))
     }
     | PNAME_LN
@@ -1013,6 +1019,7 @@ iri
     }
     | PNAME_NS
     {
+      console.log('pnamens', $1)
       $1 = $1.substr(0, $1.length - 1);
       if (!($1 in Parser.prefixes)) throw new Error('Unknown prefix: ' + $1);
       var uriString = resolveIRI(Parser.prefixes[$1]);
