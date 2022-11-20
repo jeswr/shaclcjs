@@ -1,8 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 const Parser = require('../lib').Parser;
+const SParser = require('../lib/ShaclcParser').Parser;
 const N3 = require('n3');
-const { isomorphic } = require('rdf-isomorphic')
+const { isomorphic } = require('rdf-isomorphic');
+const { parser } = require('../lib/ShaclcParser');
 
 const testFile = fs.readdirSync(path.join(__dirname, 'valid')).filter(str => str.endsWith('.shaclc'))
 let i = 0;
@@ -63,6 +65,22 @@ for (const file of testFile) {
     console.log(str)
     console.log()
     console.log(str2)
+    console.log()
+    // console.log((new SParser()).lexer)
+
+    // const lexer = (new SParser()).lexer;
+    // lexer.setInput(shaclc)
+    // lexer.begin()
+
+    // for (let i = 0; i < 100; i++) {
+      // console.log('pop', lexer.yy)
+    // }
+    // lexer.
+
+    // console.log(SParser)
+    // for (const key in new SParser().lexer) {
+    //   console.log(key)
+    // }
 
     // for (const quad of shaclcSet) {
     //   if (!turtleSet.has(quad))

@@ -391,7 +391,7 @@
 PASS                    [ \t\r\n]+ -> skip
 COMMENT                 '#' ~[\r\n]* -> skip
 
-IRIREF                  '<' (?:[^<>\"\{\}\|\^`\\\u0000-\u0020])* '>'
+IRIREF                  '<' (~[^=<>\"\{\}\|\^`\\\u0000-\u0020] | {UCHAR})* '>'
 PNAME_NS                {PN_PREFIX}? ':'
 PNAME_LN                {PNAME_NS} {PN_LOCAL}
 ATPNAME_NS              '@' {PN_PREFIX}? ':'
@@ -497,11 +497,12 @@ shaclDoc            : directive* (nodeShape|shapeClass)* EOF;
 directive           : baseDecl | importsDecl | prefixDecl ;
 baseDecl            : KW_BASE  IRIREF 
                     {
+                      console.log('base decl', $1, $2)
                       Parser.base = Parser.factory.namedNode($2.slice(1, -1));
                       Parser.onQuad(
                         Parser.factory.quad(
                           Parser.base,
-                          Parser.factory.namedNode(RDF + 'type'),
+                          Parser.factory.namedNode(RDF_TYPE),
                           Parser.factory.namedNode(OWL + 'Ontology')
                         )
                       )
@@ -509,6 +510,7 @@ baseDecl            : KW_BASE  IRIREF
                     ;
 importsDecl         : KW_IMPORTS IRIREF
                     {
+                      console.log('imports decl', $1, $2)
                       Parser.onQuad(
                         Parser.factory.quad(
                           Parser.base,
@@ -520,6 +522,7 @@ importsDecl         : KW_IMPORTS IRIREF
                     ;
 prefixDecl          : KW_PREFIX PNAME_NS IRIREF 
                     {
+                        console.log('prexi decl', $1, $2)
                         // if (!Parser.prefixes) Parser.prefixes = {
                         //   rdf: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
                         //   rdfs: 'http://www.w3.org/2000/01/rdf-schema#',
@@ -534,6 +537,7 @@ prefixDecl          : KW_PREFIX PNAME_NS IRIREF
 
 nodeShapeIri        : iri
                     {
+                      console.log('nodeshape irir', $1)
                       // console.log('iri is', $1)
                       currentNodeShape = $1
                     }
@@ -544,7 +548,7 @@ nodeShape           : KW_SHAPE nodeShapeIri targetClass? nodeShapeBody
                       Parser.onQuad(
                         Parser.factory.quad(
                           currentNodeShape,
-                          Parser.factory.namedNode(RDF + 'type'),
+                          Parser.factory.namedNode(RDF_TYPE),
                           Parser.factory.namedNode(SH + 'NodeShape')
                         )
                       )
@@ -564,10 +568,15 @@ nodeShape           : KW_SHAPE nodeShapeIri targetClass? nodeShapeBody
                       // console.log($2, $3, $4)
                     }
                     ;
-shapeClass          : KW_SHAPE_CLASS iri nodeShapeBody ;
+shapeClass          : KW_SHAPE_CLASS iri nodeShapeBody
+                    {
+                      console.log('shape class', $2)
+                    }
+                    ;
 
 startNodeShape      : '{'
                     {
+                      console.log('start node shape')
                       if (nodeShapeStack.length === 0) {
                         nodeShapeStack.push(currentNodeShape);
                       } else {
@@ -592,6 +601,7 @@ startNodeShape      : '{'
 
 endNodeShape        : '}'
                     {
+                      console.log('end node shape')
                       if (nodeShapeStack.length > 0) {
                         currentNodeShape = nodeShapeStack.pop();
                       }
@@ -602,18 +612,30 @@ endNodeShape        : '}'
                     }
                     ;
 
-nodeShapeBody       : startNodeShape constraint* endNodeShape;
+nodeShapeBody       : startNodeShape constraint* endNodeShape
+                    {
+                      console.log('node shape body')
+                    }
+                    ;
 targetClass         : '->' iri+
                     {
+                      console.log('target class')
                       $$ = $2
                     };
 
-constraint          : ( nodeOr+ | propertyShape ) '.' ;
+constraint          : ( nodeOr+ | propertyShape ) '.' 
+                    {
+                      console.log('contraint')
+                    }
+                    ;
 
 orNotComponent      : '|' nodeNot -> $2
                     ;
 
 nodeOr              : nodeNot
+                    {
+                      console.log('ndoe not')
+                    }
                     | nodeNot orNotComponent+
                     {
                       Parser.onQuad(
@@ -639,6 +661,7 @@ nodeNot             : nodeValue
                     ;
 nodeValue           : nodeParam '=' iriOrLiteralOrArray
                     {
+                      console.log('node value')
                       Parser.onQuad(
                         Parser.factory.quad(
                           currentNodeShape,
@@ -657,12 +680,20 @@ nodeValue           : nodeParam '=' iriOrLiteralOrArray
                     }
                     ;
 
-propertyShape       : path ( propertyCount | propertyOr )* ;
+propertyShape       : path ( propertyCount | propertyOr )*
+                    {
+                      console.log('property shape', $1, $2)
+                    }
+                    ;
 
 propertyOrComponent : '|' propertyNot -> $2
                     ;
 
 propertyOr          : propertyNot
+                    {
+                      console.log('property not [1]', $1)
+                      $$ = $1
+                    }
                     | propertyNot propertyOrComponent+ 
                     {
                       Parser.onQuad(
@@ -677,6 +708,10 @@ propertyOr          : propertyNot
 
 
 propertyNot         : propertyAtom
+                    {
+                      console.log('rpoeprty not')
+                      $$ = $1
+                    }
                     | negation propertyAtom
                     {
                       Parser.onQuad(
@@ -692,10 +727,26 @@ propertyNot         : propertyAtom
 
 
 propertyAtom        : propertyType
+                    {
+                      console.log('proeprty type', $1)
+                      $$ = $1
+                    }
                     | nodeKind
+                    {
+                      console.log('node kind')
+                    }
                     | shapeRef
+                    {
+                      console.log('shape ref')
+                    }
                     | propertyValue
+                    {
+                      console.log('proeprty value')
+                    }
                     | nodeShapeBody 
+                    {
+                      console.log('node shape body')
+                    }
                     ;
 propertyCount       : '[' propertyMinCount '..' propertyMaxCount ']' ;
 propertyMinCount    : INTEGER
@@ -724,6 +775,7 @@ propertyMaxCount    : INTEGER
                     ;
 propertyType        : iri
                     {
+                      console.log('property type')
                       // datatypes[$1.value]
                       
                       // TODO: See if the problem of datatype is occuring here
@@ -751,6 +803,8 @@ nodeKind            : NODEKIND
                     ;
 shapeRef            : ATPNAME_LN
                     {
+                      console.log('shaperef1', $1)
+                      
                       const ind = $1.indexOf(':');
 
                       Parser.onQuad(
@@ -767,6 +821,7 @@ shapeRef            : ATPNAME_LN
                     }
                     | ATPNAME_NS
                     {
+                      // console.log('shaperef2', $2)
                       Parser.onQuad(
                         Parser.factory.quad(
                           currentPropertyNode,
@@ -778,6 +833,7 @@ shapeRef            : ATPNAME_LN
                     }
                     | '@' IRIREF
                     {
+                      console.log('shaperef3', $3)
                       Parser.onQuad(
                         Parser.factory.quad(
                           currentPropertyNode,
@@ -791,7 +847,7 @@ shapeRef            : ATPNAME_LN
 
 propertyValue       : propertyParam '=' iriOrLiteralOrArray
                     {
-                      // console.log(currentPropertyNode, $1, $3)
+                      console.log('properrt vallue')
                       Parser.onQuad(
                         Parser.factory.quad(
                           currentPropertyNode,
@@ -898,39 +954,55 @@ pathMod             : '?' -> Parser.factory.namedNode(SH + 'zeroOrOnePath')
                     ;
 
 pathPrimary         : iri
+                    {
+                      console.log('path primary', $1)
+                    }
                     | '(' path ')'
                     {
                       console.log('path', $2)
-                      
-                      // TODO: Refactor this
-                      // var list = head = blank();
-                      // let i = 0, l = $2?.length;
-
-                      // $2?.forEach(elem => {
-                      //   Parser.onQuad(
-                      //     Parser.factory.quad(
-                      //       head, Parser.factory.namedNode(RDF_FIRST), elem
-                      //     )
-                      //   )
-
-                      //   Parser.onQuad(
-                      //     Parser.factory.quad(
-                      //       head, Parser.factory.namedNode(RDF_REST),  head = ++i < l ? blank() : Parser.factory.namedNode(RDF_NIL)
-                      //     )
-                      //   )
-                      // })
-
-                      // $$ = list
                     }
+                    // {
+                    //   // console.log('path', $2)
+                      
+                    //   // TODO: Refactor this
+                    //   // var list = head = blank();
+                    //   // let i = 0, l = $2?.length;
+
+                    //   // $2?.forEach(elem => {
+                    //   //   Parser.onQuad(
+                    //   //     Parser.factory.quad(
+                    //   //       head, Parser.factory.namedNode(RDF_FIRST), elem
+                    //   //     )
+                    //   //   )
+
+                    //   //   Parser.onQuad(
+                    //   //     Parser.factory.quad(
+                    //   //       head, Parser.factory.namedNode(RDF_REST),  head = ++i < l ? blank() : Parser.factory.namedNode(RDF_NIL)
+                    //   //     )
+                    //   //   )
+                    //   // })
+
+                    //   // $$ = list
+                    // }
                     ;
 
 iriOrLiteralOrArray : iriOrLiteral | array ;
-iriOrLiteral        : iri | literal ;
+iriOrLiteral        : iri | literal
+                    { 
+                      console.log('iri or literal', $1)
+                      $$ = $1
+                     }
+                    ;
 
 iri
-    : IRIREF -> Parser.factory.namedNode(resolveIRI($1))
+    : IRIREF
+    {
+      console.log('iriref', $1)
+      $$ = Parser.factory.namedNode(resolveIRI($1))
+    }
     | PNAME_LN
     {
+      console.log('pnameln', $1)
       var namePos = $1.indexOf(':'),
           prefix = $1.substr(0, namePos),
           expansion = Parser.prefixes[prefix];
@@ -967,7 +1039,12 @@ rdfLiteral
     | string '^^' iri -> createTypedLiteral($1, $3)
     ;
 
-datatype            : iri ;
+datatype            : iri
+                    {
+                      console.log('datatype', $1)
+                      $$ = $1
+                    }
+                    ;
 
 string
     : STRING_LITERAL1 -> unescapeString($1, 1)
@@ -976,41 +1053,17 @@ string
     | STRING_LITERAL_LONG2 -> unescapeString($1, 3)
     ;
 
-array               : '[' iriOrLiteral* ']'
-                    {
-                      // var list = head = blank();
-
-                      
-
-
-                      // let i = 0, l = $2?.length;
-
-                      // $2?.forEach(elem => {
-                      //   Parser.onQuad(
-                      //     Parser.factory.quad(
-                      //       head, Parser.factory.namedNode(RDF_FIRST), elem
-                      //     )
-                      //   )
-
-                      //   Parser.onQuad(
-                      //     Parser.factory.quad(
-                      //       head, Parser.factory.namedNode(RDF_REST),  head = ++i < l ? blank() : Parser.factory.namedNode(RDF_NIL)
-                      //     )
-                      //   )
-                      // })
-
-                      $$ = addList($2)
-                    }
+array               : '[' iriOrLiteral* ']' -> addList($2)
                     ;
 
 nodeParam           : TARGET | PARAM 
                     {
                       // $$ = $1
-                      console.log('node param', $1)
+                      // console.log('node param', $1)
                     }
                     ;
 propertyParam       : PARAM
                     {
-                      console.log('property param', $1, blank())
+                      // console.log('property param', $1, blank())
                     }
                     ;
