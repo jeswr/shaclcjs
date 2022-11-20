@@ -28,6 +28,9 @@ for (const file of testFile) {
   // isomorphic(shaclcSet, turtleSet)
 
   // console.log
+  console.log(
+    (new Parser()).parse(shaclc)
+  )
 
   if (!isomorphic((new Parser()).parse(shaclc), (new N3.Parser()).parse(ttl))) {
     console.log(file)

@@ -382,8 +382,6 @@ endNodeShape        : '}'
 
 nodeShapeBody       : startNodeShape constraint* endNodeShape
                     {
-                      $$ = ['node']
-                      
                       console.log('node shape body')
                     }
                     ;
@@ -418,17 +416,11 @@ nodeOr              : nodeNot
 nodeNot             : nodeValue
                     | negation nodeValue
                     {
-                      const b = blank();
-
-                      emit(b, $2[0], $2[1]);
-
-                      $$ = ['not', b];
-                      
-                      // emit(
-                      //   $$ = blank(),
-                      //   Parser.factory.namedNode(SH + 'not'),
-                      //   $1
-                      // )
+                      emit(
+                        $$ = blank(),
+                        Parser.factory.namedNode(SH + 'not'),
+                        $1
+                      )
                     }
                     ;
 nodeValue           : nodeParam '=' iriOrLiteralOrArray
@@ -450,16 +442,18 @@ propertyShape       : path ( propertyCount | propertyOr )*
 propertyOrComponent : '|' propertyNot -> $2
                     ;
 
-propertyOr          : propertyNot -> emitProperty(elem[0], elem[1])
-                    | propertyNot propertyOrComponent+
+propertyOr          : propertyNot
                     {
-                      $$ = emitProperty(
-                        'or',
-                        addList([$1, ...$2].map(elem => {
-                          const x = blank();
-                          emit(x, elem[0], elem[1]);
-                          return x;
-                        }))
+                      console.log('property not [1]', $1)
+                      $$ = $1
+                    }
+                    | propertyNot propertyOrComponent+ 
+                    {
+                      console.log('property not with or component', $1, $2)
+                      emit(
+                        $$ = blank(),
+                        Parser.factory.namedNode(SH + 'or'),
+                        addList([$1, ...$2])
                       )
                     }
                     ;
@@ -472,29 +466,26 @@ propertyNot         : propertyAtom
                     }
                     | negation propertyAtom
                     {
-                      const x = blank();
-
+                      console.log('negated property atom')
                       emit(
-                        x,
-                        Parser.factory.namedNode(SH + $2[0]),
-                        $2[1]
+                        $$ = blank(),
+                        Parser.factory.namedNode(SH + 'not'),
+                        $2
                       )
-
-                      $$ = ['not', x]
                     }
                     ;
 
 
 
-propertyAtom        : propertyType -> [datatypes[$1.value] ? 'datatype' : 'class', $1]
+propertyAtom        : propertyType -> emitProperty(datatypes[$1.value] ? 'datatype' : 'class', $1)
                     // {
                     //   console.log('[a] proeprty type', $1)
                     //   $$ = $1
                     // }
-                    | nodeKind -> ['nodeKind', Parser.factory.namedNode(SH + $1)]
-                    | shapeRef -> ['node', Parser.factory.namedNode($1)]
+                    | nodeKind -> emitProperty('nodeKind', Parser.factory.namedNode(SH + $1))
+                    | shapeRef -> emitProperty('node', Parser.factory.namedNode($1))
                     // propertyValue
-                    | propertyParam '=' iriOrLiteralOrArray -> [$1, $3]
+                    | propertyParam '=' iriOrLiteralOrArray -> emitProperty($1, $3)
                     | nodeShapeBody 
                     // {
                     //   console.log('[a] node shape body', $1)
@@ -556,22 +547,16 @@ additionalAlternative : '|' pathSequence -> $2
                       ;
 
 pathAlternative     : pathSequence
-                    | pathSequence additionalAlternative+ -> ['alternativePath', addList([$1, ...$2])]
-                    // {
-                    //   $$ = ['A']
-                      
-                    //   // const b = blank()
-
-
-                      
-                    //   // Parser.onQuad(
-                    //   //   Parser.factory.quad(
-                    //   //     $$ = blank(),
-                    //   //     Parser.factory.namedNode(SH + 'alternativePath'),
-                    //   //     addList([$1, ...$2])
-                    //   //   )
-                    //   // )
-                    // }
+                    | pathSequence additionalAlternative+
+                    {
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          $$ = blank(),
+                          Parser.factory.namedNode(SH + 'alternativePath'),
+                          addList([$1, ...$2])
+                        )
+                      )
+                    }
                     ;
 
 additionalSequence : '/' pathEltOrInverse -> $2
