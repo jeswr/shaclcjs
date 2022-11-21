@@ -110,14 +110,13 @@
   }
 
   function expandPrefix(iri) {
-    // console.log('expand prefix called on', iri)
     const namePos = iri.indexOf(':'),
           prefix = iri.substr(0, namePos),
           expansion = Parser.prefixes[prefix];
     
     if (!expansion) throw new Error('Unknown prefix: ' + prefix);
     
-    return resolveIRI(expansion + iri.substr(namePos + 1));
+    return Parser.factory.namedNode(resolveIRI(expansion + iri.substr(namePos + 1)));
   }
   
   // Converts the string to a number
@@ -179,9 +178,6 @@
   }
 
   function emit(s, p, o) {
-    if (!s.termType || !p.termType || !o.termType) {
-      throw new Error(`boo ${s} ${p} ${o}`)
-    }
     Parser.onQuad(Parser.factory.quad(s, p, o))
   }
 
@@ -343,9 +339,6 @@ startNodeShape      : '{'
                           )
                         nodeShapeStack.push(currentNodeShape);
                       }
-          
-                      $$ = currentNodeShape;
-                      console.log($$)
                       
                       
                       // TODO: Push a new nodeShape blankNode here when we are on a nested shape
@@ -356,7 +349,7 @@ startNodeShape      : '{'
 
 endNodeShape        : '}'
                     {
-                      // console.log('end node shape')
+                      console.log('end node shape')
                       if (nodeShapeStack.length > 0) {
                         currentNodeShape = nodeShapeStack.pop();
                       }
@@ -369,76 +362,72 @@ endNodeShape        : '}'
 
 nodeShapeBody       : startNodeShape constraint* endNodeShape
                     {
-                      console.log('node shape body called')
-                      $$ = $1
+                      $$ = ['node']
+                      
+                      console.log('node shape body')
                     }
                     ;
 
 targetClass         : '->' iri+ -> $2.forEach(node => { emit(currentNodeShape, Parser.factory.namedNode(SH + 'targetClass'), node) })
                     ;
 
-constraint          : ( nodeOrEmit+ | propertyShape ) '.' 
+constraint          : ( nodeOr+ | propertyShape ) '.' 
                     {
-                      // console.log('contraint')
+                      console.log('contraint')
                     }
                     ;
 
 orNotComponent      : '|' nodeNot -> $2
                     ;
 
-nodeOrEmit          : nodeOr -> emit(currentNodeShape, Parser.factory.namedNode(SH + $1[0]), $1[1])
-                    ;
-
 nodeOr              : nodeNot
                     {
-                      // console.log('ndoe not')
+                      console.log('ndoe not')
                     }
                     | nodeNot orNotComponent+
                     {
-                      // console.log(
-                      //   [$1, ...$2]
-                      // )
-                      const b = blank()
                       emit(
-                        b,
+                        $$ = blank(),
                         Parser.factory.namedNode(SH + $1),
-                        addList([$1, ...$2].map(elem => {
-                          const x = blank();
-                          // console.log('or on', ...elem)
-                          emit(x, Parser.factory.namedNode(SH + elem[0]), elem[1]);
-                          return x;
-                        }))
+                        addList([$1, ...$2])
                       )
-
-                      $$ = ['or',  b]
                     }
                     ;
 nodeNot             : nodeValue
-                    | negation nodeValue -> chainProperty('not', ...$2)
-                    // {
-                    //   const b = blank();
+                    | negation nodeValue
+                    {
+                      const b = blank();
 
-                    //   emit(b, $2[0], $2[1]);
+                      emit(b, $2[0], $2[1]);
 
-                    //   $$ = ['not', b];
+                      $$ = ['not', b];
                       
-                    //   // emit(
-                    //   //   $$ = blank(),
-                    //   //   Parser.factory.namedNode(SH + 'not'),
-                    //   //   $1
-                    //   // )
-                    // }
+                      // emit(
+                      //   $$ = blank(),
+                      //   Parser.factory.namedNode(SH + 'not'),
+                      //   $1
+                      // )
+                    }
                     ;
-nodeValue           : (TARGET | PARAM) '=' iriOrLiteralOrArray -> [$1, $3]
+nodeValue           : (TARGET | PARAM) '=' iriOrLiteralOrArray
+                    {
+                      emit(
+                        currentNodeShape,
+                        Parser.factory.namedNode(SH + $1),
+                        $3
+                      )
+                    }
                     ;
 
 propertyShape       : path ( propertyCount | propertyOr )*
+                    {
+                      console.log('property shape', $1, $2)
+                    }
                     ;
 
 propertyOrComponent : '|' propertyNot -> $2
                     ;
 
-// Top level property emission
 propertyOr          : propertyNot -> emitProperty(...$1)
                     | propertyNot propertyOrComponent+
                     {
@@ -446,20 +435,37 @@ propertyOr          : propertyNot -> emitProperty(...$1)
                         'or',
                         addList([$1, ...$2].map(elem => {
                           const x = blank();
-                          // console.log('or on', ...elem)
-                          emit(x, Parser.factory.namedNode(SH + elem[0]), elem[1]);
+                          emit(x, elem[0], elem[1]);
                           return x;
                         }))
                       )
                     }
                     ;
 
+
 propertyNot         : propertyAtom
-                    | negation propertyAtom -> chainProperty('not', ...$2)
+                    {
+                      console.log('rpoeprty not')
+                      $$ = $1
+                    }
+                    | negation propertyAtom
+                    {
+                      const x = blank();
+
+                      emit(
+                        x,
+                        Parser.factory.namedNode(SH + $2[0]),
+                        $2[1]
+                      )
+
+                      $$ = ['not', x]
+                    }
                     ;
 
-propertyAtom        : iri -> [datatypes[$1.value] ? 'datatype' : 'class', $1]
-                    | NODEKIND -> ['nodeKind', Parser.factory.namedNode(SH + $1)]
+
+
+propertyAtom        : propertyType -> [datatypes[$1.value] ? 'datatype' : 'class', $1]
+                    | nodeKind -> ['nodeKind', Parser.factory.namedNode(SH + $1)]
                     | shapeRef -> ['node', Parser.factory.namedNode($1)]
                     | PARAM '=' iriOrLiteralOrArray -> [$1, $3]
                     | nodeShapeBody -> ['node', $1]
@@ -474,9 +480,27 @@ propertyMinCount    : INTEGER -> $1 > 0 && emitProperty('minCount', createTypedL
 propertyMaxCount    : INTEGER -> emitProperty('maxCount', createTypedLiteral($1, XSD_INTEGER))
                     | '*'
                     ;
+propertyType        : iri
+                    // {
+                    //   console.log('[property type] property type', $1)
+                    //   // datatypes[$1.value]
+                      
+                    //   // TODO: See if the problem of datatype is occuring here
+                    //   // NOTE: This *is* the clase of the shapeRef class problem
+                    //   emitProperty(datatypes[$1.value] ? 'datatype' : 'class', $1)
+                    // }
+                    ;
 
+nodeKind            : NODEKIND
+                    ;
+
+shapeRef            : ATPNAME_LN
+                    {
+                      const ind = $1.indexOf(':');
+                      $$ = Parser.prefixes[$1.slice(1, ind)] + $1.slice(ind + 1)
+                    }
                     // TODO: Check this
-shapeRef            : (ATPNAME_LN | ATPNAME_NS) -> expandPrefix($1.slice(1))
+                    | ATPNAME_NS -> Parser.prefixes[$1.slice(1, $1.length - 1)]
                     | '@' IRIREF -> resolveIRI($2)
                     ;
 
@@ -485,11 +509,14 @@ negation            : '!' ;
 path                : pathAlternative
                     {
                       
-                      emit(
-                        // In the grammar a path signals the start of a new property declaration
-                        currentNodeShape,
-                        Parser.factory.namedNode(SH + 'property'),
-                        currentPropertyNode = blank(),
+                      // currentPropertyNode = blank();
+                      Parser.onQuad(
+                        Parser.factory.quad(
+                          // In the grammar a path signals the start of a new property declaration
+                          currentNodeShape,
+                          Parser.factory.namedNode(SH + 'property'),
+                          currentPropertyNode = blank(),
+                        )
                       )
                       
                       emitProperty('path', $1)
@@ -500,14 +527,22 @@ additionalAlternative : '|' pathSequence -> $2
                       ;
 
 pathAlternative     : pathSequence
-                    | pathSequence additionalAlternative+
-                    {
-                      emit(
-                        $$ = blank(),
-                        Parser.factory.namedNode(SH + 'alternativePath'),
-                        addList([$1, ...$2])
-                      )
-                    }
+                    | pathSequence additionalAlternative+ -> ['alternativePath', addList([$1, ...$2])]
+                    // {
+                    //   $$ = ['A']
+                      
+                    //   // const b = blank()
+
+
+                      
+                    //   // Parser.onQuad(
+                    //   //   Parser.factory.quad(
+                    //   //     $$ = blank(),
+                    //   //     Parser.factory.namedNode(SH + 'alternativePath'),
+                    //   //     addList([$1, ...$2])
+                    //   //   )
+                    //   // )
+                    // }
                     ;
 
 additionalSequence : '/' pathEltOrInverse -> $2
@@ -548,7 +583,7 @@ iriOrLiteral        : iri | literal ;
 
 iri : IRIREF -> Parser.factory.namedNode(resolveIRI($1))
     // TODO: Double check expand prefix works on both
-    | (PNAME_LN | PNAME_NS) -> Parser.factory.namedNode(expandPrefix($1))
+    | (PNAME_LN | PNAME_NS) -> expandPrefix($1)
     ;
 
 literal

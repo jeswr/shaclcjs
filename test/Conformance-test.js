@@ -13,7 +13,7 @@ for (const file of testFile) {
   // continue;
   // console.log(file)
 
-  if (process.argv[2] && !file.includes(process.argv[2])) {
+  if (process.argv[2] && !file.toLowerCase().includes(process.argv[2].toLowerCase())) {
     continue;
   }
 
@@ -28,15 +28,24 @@ for (const file of testFile) {
   // isomorphic(shaclcSet, turtleSet)
 
   // console.log
-  console.log(
-    (new Parser()).parse(shaclc)
-  )
+  // console.log(
+  //   (new Parser()).parse(shaclc)
+  // )
 
-  if (!isomorphic((new Parser()).parse(shaclc), (new N3.Parser()).parse(ttl))) {
-    console.log(file)
+  const shaclcParser = new Parser();
+  console.log(shaclcParser)
+  SParser._resetBlanks();
+  N3.Parser._resetBlankNodePrefix();
+
+  const parsedShaclc = shaclcParser.parse(shaclc)
+  const parsedttl = (new N3.Parser()).parse(ttl);
+
+  if (!isomorphic(parsedShaclc, parsedttl)) {
+    // console.log('not isomprhic')
+    // console.log(file)
     
-    const shaclcSet = new N3.Store((new Parser()).parse(shaclc));
-    const turtleSet = new N3.Store((new N3.Parser()).parse(ttl).map(quad => {
+    const shaclcSet = new N3.Store(parsedShaclc);
+    const turtleSet = new N3.Store(parsedttl.map(quad => {
       return N3.DataFactory.quad(
         quad.subject.termType === 'BlankNode' ? N3.DataFactory.blankNode(quad.subject.value.replace('n3-', 'g_')) : quad.subject,
         quad.predicate.termType === 'BlankNode' ? N3.DataFactory.blankNode(quad.predicate.value.replace('n3-', 'g_')) : quad.predicate,
@@ -92,7 +101,17 @@ for (const file of testFile) {
 
     // console.log('boo')
     i++;
+
+    console.log('='.repeat(10))
     console.log(shaclc)
+    console.log('-'.repeat(10))
+    console.log(
+      prettyTurtle([
+        ...shaclcSet
+      ])
+    )
+    
+    console.log('='.repeat(10))
   }
 
   // console.log(shaclc)
@@ -135,3 +154,195 @@ console.log(`${testFile.length - i}/${testFile.length}`)
 
 
 // console.log(elems)
+
+
+// const fs = require('fs');
+// const N3 = require('n3');
+// const path = require('path')
+
+
+function prettyTurtle(quads) {
+  const TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'
+  let result = '';
+  // TODO: Sort by length of prefix so best prefix gets picked
+  const prefix = { 'http://example.org/test#': 'ext', 'http://example.org/': 'ex', 'http://www.w3.org/ns/shacl#': 'sh', 'http://www.w3.org/2002/07/owl#': 'owl', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#': 'rdf' }
+  const store =  new N3.Store(quads);
+  const writer = new N3.Writer();
+
+  const blankObjectsToEncode = [];
+
+  const encodedBlanks = {}
+
+  function fromPredicate(subject, indent = 1) {
+    // console.('\t'.repeat(indent))
+    const types = store.getObjects(subject, N3.DataFactory.namedNode(TYPE));
+
+      // let postFix = ''
+      if (types.length > 0) {
+        result += ' a ' + types.map(type => encodeObject(type)).join(', ')  + ' ;'
+      }
+
+      const predicates = store.getPredicates(subject).filter(predicate => !predicate.equals(N3.DataFactory.namedNode(TYPE)));
+
+      // if (predicates.length === 0) {
+
+      // }
+      
+      
+      
+      // console.log(writer._encodeSubject(subject), postFix, ';')
+      for (const predicate of predicates) {
+        const blankObjects = [];
+        const nonBlankObjects = [];
+        
+        // console.log('objects are', store.getObjects(subject, predicate))
+        for (const object of store.getObjects(subject, predicate)) {
+          if (object.termType === 'BlankNode') {
+            if ([...store.match(null, null, object), ...store.match(null, object, null)].length > 1) {
+              nonBlankObjects.push(object)
+              if (!encodedBlanks[object.value]) {
+                blankObjectsToEncode.push(object);
+                encodedBlanks[object.value] = true
+              }
+              
+            } else {
+              blankObjects.push(object)
+            }
+          } else {
+            nonBlankObjects.push(object)
+          }
+        }
+
+        
+        
+        // const nonBlankObjects = store.getObjects(subject, predicate).filter(x !== x.termType === 'BlankNode');
+
+
+
+        // console.log(nonBlankObjects)
+        result += '\n' + '  '.repeat(indent) + encodePredicate(predicate) + ' ' + nonBlankObjects.map(x => encodeObject(x)).join(', ')
+
+        if (blankObjects.length > 0) {
+          if (nonBlankObjects.length > 0) {
+            result += ', '
+          }
+
+          result += '['
+
+          for (const blank of blankObjects) {
+            fromPredicate(blank, indent + 1)
+          }
+
+          result += '\n' + '  '.repeat(indent) + ']'
+        }
+
+        result += ' ;'
+
+        // const objects = store.getObjects(subject, predicate).filter(x !== x.termType === 'BlankNode')
+        
+        
+        // result += 
+        
+        //+ store.getObjects(subject, predicate).map(object => writer._encodeObject(object)).join(', ')
+        // if (!predicate.equals(N3.DataFactory.namedNode(TYPE)))
+          // console.log('  ', writer._encodePredicate(predicate), store.getObjects(subject, predicate).map(object => writer._encodeObject(object)).join(', '), ';')
+      }
+      // result += ' .'
+  }
+
+
+  function encodeSubject(subject) {
+    if (subject.termType === 'NamedNode') {
+      if (subject.value === TYPE) {
+        return TYPE;
+      }
+      for (const key in prefix) {
+        if (subject.value.startsWith(key)) {
+          return prefix[key] + ':' + subject.value.slice(key.length)
+        }
+      }
+    }
+    return writer._encodeSubject(subject);
+  }
+
+  function encodePredicate(subject) {
+    if (subject.termType === 'NamedNode') {
+      if (subject.value === TYPE) {
+        return TYPE;
+      }
+      for (const key in prefix) {
+        if (subject.value.startsWith(key)) {
+          return prefix[key] + ':' + subject.value.slice(key.length)
+        }
+      }
+      for (const key in prefix) {
+        if (subject.value.startsWith(key)) {
+          return prefix[key] + ':' + subject.value.slice(key.length)
+        }
+      }
+    }
+    return writer._encodePredicate(subject);
+  }
+
+  function encodeObject(subject) {
+    // console.log('encoding object', subject)
+    if (subject.termType === 'NamedNode') {
+      if (subject.value === TYPE) {
+        return TYPE;
+      }
+      for (const key in prefix) {
+        if (subject.value.startsWith(key)) {
+          return prefix[key] + ':' + subject.value.slice(key.length)
+        }
+      }
+      for (const key in prefix) {
+        if (subject.value.startsWith(key)) {
+          return prefix[key] + ':' + subject.value.slice(key.length)
+        }
+      }
+    }
+    return writer._encodeObject(subject);
+  }
+
+  for (const subject of store.getSubjects()) {
+    if (subject.termType === 'NamedNode') {
+      result += encodeSubject(subject)
+      
+      fromPredicate(subject)
+
+      result += '\n.\n\n'
+
+      // const types = store.getObjects(subject, N3.DataFactory.namedNode(TYPE));
+
+      // let postFix = ''
+      // if (types.length > 0) {
+      //   postFix = 'a ' + types.map(type => writer._encodeObject(type)).join(', ')
+      // }
+      
+      
+      
+      // console.log(writer._encodeSubject(subject), postFix, ';')
+      // for (const predicate of store.getPredicates(subject)) {
+      //   if (!predicate.equals(N3.DataFactory.namedNode(TYPE)))
+      //     console.log('  ', writer._encodePredicate(predicate), store.getObjects(subject, predicate).map(object => writer._encodeObject(object)).join(', '), ';')
+      // }
+
+
+      // console.log() 
+    }
+
+    // return result;
+  }
+
+  while (blankObjectsToEncode.length > 0) {
+    const subject = blankObjectsToEncode.pop();
+    // console.log('in while', subject)
+
+    result += encodeSubject(subject)
+    fromPredicate(subject)
+    result += '\n.\n\n'
+  }
+
+  return result;
+  console.log(store.getSubjects())
+}
