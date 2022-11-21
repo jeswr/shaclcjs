@@ -1,5 +1,5 @@
 {
-  "name": "shaclcjs",
+  "name": "shaclc-parse",
   "version": "0.0.1",
   "description": "A parser for files written with SHACL compact syntax",
   "main": "lib/index.js",
@@ -11,7 +11,7 @@
   ],
   "scripts": {
     "build": "jison lib/shaclc.jison -p slr -o lib/ShaclcParser.js",
-    "test": "mocha",
+    "test": "node test/Conformance-test.js",
     "prepublishOnly": "npm run build",
     "spec-base-query": "rdf-test-suite spec/parser.js http://w3c.github.io/rdf-tests/sparql11/data-sparql11/manifest-all.ttl -s http://www.w3.org/TR/sparql11-query/ -c .rdf-test-suite-cache/",
     "spec-base-update": "rdf-test-suite spec/parser.js http://w3c.github.io/rdf-tests/sparql11/data-sparql11/manifest-all.ttl -s http://www.w3.org/TR/sparql11-update/ -c .rdf-test-suite-cache/",

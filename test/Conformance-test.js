@@ -178,7 +178,9 @@ for (const file of testFile) {
 
 console.log(`${testFile.length - i}/${testFile.length}`)
   
-
+if (testFile.length !== i) {
+  process.exit(1);
+}
 
 // console.log(elems)
 
