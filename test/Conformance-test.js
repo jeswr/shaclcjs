@@ -17,7 +17,7 @@ for (const file of testFile) {
     continue;
   }
 
-  console.log('run', file)
+  // console.log('run', file)
 
   const shaclc = fs.readFileSync(path.join(__dirname, 'valid', file)).toString();
   const ttl = fs.readFileSync(path.join(__dirname, 'valid', file.replace('.shaclc', '.ttl'))).toString();
@@ -33,7 +33,7 @@ for (const file of testFile) {
   // )
 
   const shaclcParser = new Parser();
-  console.log(shaclcParser)
+  // console.log(shaclcParser)
   SParser._resetBlanks();
   N3.Parser._resetBlankNodePrefix();
 
@@ -165,7 +165,7 @@ function prettyTurtle(quads) {
   const TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'
   let result = '';
   // TODO: Sort by length of prefix so best prefix gets picked
-  const prefix = { 'http://example.org/test#': 'ext', 'http://example.org/': 'ex', 'http://www.w3.org/ns/shacl#': 'sh', 'http://www.w3.org/2002/07/owl#': 'owl', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#': 'rdf' }
+  const prefix = { 'http://example.org/test#': 'ext', 'http://example.org/': 'ex', 'http://www.w3.org/ns/shacl#': 'sh', 'http://www.w3.org/2002/07/owl#': 'owl', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#': 'rdf', 'http://www.w3.org/2001/XMLSchema#': 'xsd' }
   const store =  new N3.Store(quads);
   const writer = new N3.Writer();
 
@@ -192,8 +192,9 @@ function prettyTurtle(quads) {
       
       // console.log(writer._encodeSubject(subject), postFix, ';')
       for (const predicate of predicates) {
-        const blankObjects = [];
+        let blankObjects = [];
         const nonBlankObjects = [];
+        // const listObjects = [];
         
         // console.log('objects are', store.getObjects(subject, predicate))
         for (const object of store.getObjects(subject, predicate)) {
@@ -213,6 +214,33 @@ function prettyTurtle(quads) {
           }
         }
 
+        const listObjects = []
+
+        blankObjects = blankObjects.filter((object) => {
+          return true;
+          console.log(object)
+          let listElems = [];
+
+          while (!object.equals(N3.DataFactory.namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#nil'))) {
+            const val = store.getObjects(object, N3.DataFactory.namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#first'))
+            const objects = store.getObjects(object, N3.DataFactory.namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#rest'))
+            if (objects.length !== 1 || val.length !== 1 || store.getPredicates(object) !== 2) {
+              console.log(objects, val, store.getPredicates(object))
+              console.log(objects.length !== 1, val.length !== 1, store.getPredicates(object) !== 2)
+              return true;
+            }
+            object = objects[0]
+            
+            // TODO: Handle blank nodes in list by doing fromPredicate here
+            listElems.push(encodeObject(val[0]))
+          }
+          
+          listObjects.push('( ' + listElems.join(', ') + ')');
+          return false;          
+        })
+
+        const oStrings = [...nonBlankObjects.map(x => encodeObject(x)), ...listObjects]
+
         
         
         // const nonBlankObjects = store.getObjects(subject, predicate).filter(x !== x.termType === 'BlankNode');
@@ -220,20 +248,28 @@ function prettyTurtle(quads) {
 
 
         // console.log(nonBlankObjects)
-        result += '\n' + '  '.repeat(indent) + encodePredicate(predicate) + ' ' + nonBlankObjects.map(x => encodeObject(x)).join(', ')
+        result += '\n' + '  '.repeat(indent) + encodePredicate(predicate) + ' ' + oStrings.join(', ')
 
         if (blankObjects.length > 0) {
-          if (nonBlankObjects.length > 0) {
+          if (oStrings.length > 0) {
             result += ', '
           }
 
-          result += '['
+          // result += '['
 
+          let i = 0;
+          
           for (const blank of blankObjects) {
+            result += '['
             fromPredicate(blank, indent + 1)
+            result += '\n' + '  '.repeat(indent) + ']'
+
+            if (++i < blankObjects.length) {
+              result += ', '
+            }
           }
 
-          result += '\n' + '  '.repeat(indent) + ']'
+          // result += '\n' + '  '.repeat(indent) + ']'
         }
 
         result += ' ;'

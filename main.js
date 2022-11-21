@@ -59,7 +59,7 @@ function prettyTurtle() {
 
 
 
-        console.log(nonBlankObjects)
+        // console.log(nonBlankObjects)
         result += '\n' + '  '.repeat(indent) + encodePredicate(predicate) + ' ' + nonBlankObjects.map(x => encodeObject(x)).join(', ')
 
         if (blankObjects.length > 0) {
@@ -125,7 +125,7 @@ function prettyTurtle() {
   }
 
   function encodeObject(subject) {
-    console.log('encoding object', subject)
+    // console.log('encoding object', subject)
     if (subject.termType === 'NamedNode') {
       if (subject.value === TYPE) {
         return TYPE;
@@ -183,9 +183,9 @@ function prettyTurtle() {
   }
 
   return result;
-  console.log(store.getSubjects())
+  // console.log(store.getSubjects())
 }
 
-console.log(
-  prettyTurtle()
-)
+// console.log(
+//   prettyTurtle()
+// )

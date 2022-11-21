@@ -22,7 +22,7 @@
       SH = 'http://www.w3.org/ns/shacl#',
       OWL = 'http://www.w3.org/2002/07/owl#',
       RDFS = 'http://www.w3.org/2000/01/rdf-schema#';
-  var base = '', basePath = '', baseRoot = '', currentNodeShape, currentPropertyNode, nodeShapeStack = [];
+  var base = Parser.base = '', basePath = '', baseRoot = '', currentNodeShape, currentPropertyNode, nodeShapeStack = [];
 
     Parser.prefixes = {
       rdf: RDF,
@@ -110,7 +110,6 @@
   }
 
   function expandPrefix(iri) {
-    // console.log('expand prefix called on', iri)
     const namePos = iri.indexOf(':'),
           prefix = iri.substr(0, namePos),
           expansion = Parser.prefixes[prefix];
@@ -179,8 +178,8 @@
   }
 
   function emit(s, p, o) {
-    if (!s.termType || !p.termType || !o.termType) {
-      throw new Error(`boo ${s} ${p} ${o}`)
+    if (!s.termType || !p.termType || p.value.includes(',') || !o.termType) {
+      throw new Error(`boo ${s.value} ${p.value} ${o.value}`)
     }
     Parser.onQuad(Parser.factory.quad(s, p, o))
   }
@@ -292,6 +291,8 @@ PARAM                   'deactivated' | 'severity' | 'message' | 'class' | 'data
 
 "/"                     return '/'
 "="                     return '='
+"@"                     return '@'
+"^"                     return '^'
 
 <<EOF>>                 return 'EOF'
 
@@ -303,10 +304,16 @@ PARAM                   'deactivated' | 'severity' | 'message' | 'class' | 'data
 
 %%
 
-shaclDoc            : directive* (nodeShape|shapeClass)* EOF;
+// eof                 : EOF -> emit(Parser.base, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(OWL + 'Ontology'))
+//                     ;
+
+// TODO: Work out why this occurs multiple times when the empty file is called with other things (the base from the previous file is somehow getting leaked thorugh)
+shaclDoc            : directive* (nodeShape|shapeClass)* EOF -> emit(Parser.base || Parser.factory.namedNode('urn:x-base:default'), Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(OWL + 'Ontology'))
+                    ;
 
 directive           : baseDecl | importsDecl | prefixDecl ;
-baseDecl            : KW_BASE  IRIREF -> emit(base = Parser.base = Parser.factory.namedNode($2.slice(1, -1)), Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(OWL + 'Ontology'))
+                    // TODO: Remove the duplicate declaration of base
+baseDecl            : KW_BASE  IRIREF -> base = Parser.base = Parser.factory.namedNode($2.slice(1, -1))
                     ;
 
                     // TODO: See if this should be resolveIRI($2)
@@ -327,25 +334,24 @@ shapeClass          : KW_SHAPE_CLASS nodeShapeIri nodeShapeBody -> emit(currentN
 
 startNodeShape      : '{'
                     {
-                      console.log('start node shape')
                       if (nodeShapeStack.length === 0) {
                         nodeShapeStack.push(currentNodeShape);
                       } else {
                         
                         // nodeShapeStack.push(currentNodeShape = blank());
                         
-                        
+                        // console.log('root emission', currentPropertyNode, currentNodeShape)
                         emit(
-                            // In the grammar a path signals the start of a new property declaration
-                            currentPropertyNode,
-                            Parser.factory.namedNode(SH + 'node'),
-                            currentNodeShape = blank(),
-                          )
+                          // In the grammar a path signals the start of a new property declaration
+                          currentPropertyNode,
+                          Parser.factory.namedNode(SH + 'node'),
+                          currentNodeShape = blank(),
+                        )
+                        // currentNodeShape = blank()
                         nodeShapeStack.push(currentNodeShape);
                       }
           
                       $$ = currentNodeShape;
-                      console.log($$)
                       
                       
                       // TODO: Push a new nodeShape blankNode here when we are on a nested shape
@@ -367,11 +373,7 @@ endNodeShape        : '}'
                     }
                     ;
 
-nodeShapeBody       : startNodeShape constraint* endNodeShape
-                    {
-                      console.log('node shape body called')
-                      $$ = $1
-                    }
+nodeShapeBody       : startNodeShape constraint* endNodeShape -> $1
                     ;
 
 targetClass         : '->' iri+ -> $2.forEach(node => { emit(currentNodeShape, Parser.factory.namedNode(SH + 'targetClass'), node) })
@@ -398,19 +400,26 @@ nodeOr              : nodeNot
                       // console.log(
                       //   [$1, ...$2]
                       // )
-                      const b = blank()
-                      emit(
-                        b,
-                        Parser.factory.namedNode(SH + $1),
-                        addList([$1, ...$2].map(elem => {
-                          const x = blank();
-                          // console.log('or on', ...elem)
-                          emit(x, Parser.factory.namedNode(SH + elem[0]), elem[1]);
-                          return x;
-                        }))
-                      )
+                      // const b = blank()
+                      // emit(
+                      //   b,
+                      //   Parser.factory.namedNode(SH + $1),
+                      //   addList([$1, ...$2].map(elem => {
+                      //     const x = blank();
+                      //     // console.log('or on', ...elem)
+                      //     emit(x, Parser.factory.namedNode(SH + elem[0]), elem[1]);
+                      //     return x;
+                      //   }))
+                      // )
 
-                      $$ = ['or',  b]
+                      const o = addList([$1, ...$2].map(elem => {
+                        const x = blank();
+                        // console.log('or on', ...elem)
+                        emit(x, Parser.factory.namedNode(SH + elem[0]), elem[1]);
+                        return x;
+                      }))
+
+                      $$ = ['or',  o]
                     }
                     ;
 nodeNot             : nodeValue
@@ -439,7 +448,13 @@ propertyOrComponent : '|' propertyNot -> $2
                     ;
 
 // Top level property emission
-propertyOr          : propertyNot -> emitProperty(...$1)
+propertyOr          : propertyNot
+                    {
+                      // console.log('emitting property not', currentPropertyNode, ...$1)
+                      // TODO: Fix this workaround, we should be able to emit everything - and the blank node from
+                      // the shape body should be emitted here
+                      $$ = $1 && emitProperty(...$1)
+                    }
                     | propertyNot propertyOrComponent+
                     {
                       $$ = emitProperty(
@@ -462,7 +477,8 @@ propertyAtom        : iri -> [datatypes[$1.value] ? 'datatype' : 'class', $1]
                     | NODEKIND -> ['nodeKind', Parser.factory.namedNode(SH + $1)]
                     | shapeRef -> ['node', Parser.factory.namedNode($1)]
                     | PARAM '=' iriOrLiteralOrArray -> [$1, $3]
-                    | nodeShapeBody -> ['node', $1]
+                    // TODO: Fix this workaround (the node *should* be emitted this way)
+                    | nodeShapeBody -> undefined //['node', $1]
                     ;
 
 propertyCount       : '[' propertyMinCount '..' propertyMaxCount ']' 
@@ -485,6 +501,8 @@ negation            : '!' ;
 path                : pathAlternative
                     {
                       
+
+
                       emit(
                         // In the grammar a path signals the start of a new property declaration
                         currentNodeShape,
@@ -502,11 +520,13 @@ additionalAlternative : '|' pathSequence -> $2
 pathAlternative     : pathSequence
                     | pathSequence additionalAlternative+
                     {
+                      const n = blank();
                       emit(
-                        $$ = blank(),
+                        n,
                         Parser.factory.namedNode(SH + 'alternativePath'),
                         addList([$1, ...$2])
                       )
+                      $$ = n
                     }
                     ;
 
@@ -524,7 +544,7 @@ pathElt             : pathPrimary
                     }
                     ;
 pathEltOrInverse    : pathElt
-                    | pathInverse pathElt 
+                    | pathInverse pathElt
                     {
                       emit($$ = blank(), Parser.factory.namedNode(SH + 'inversePath'), $2)
                     }
@@ -537,7 +557,9 @@ pathMod             : '?' -> 'zeroOrOnePath'
 
 pathPrimary         : iri
                     // TODO: Check this (I don' think there needs to be any other special logic for the brackets here)
-                    | '(' path ')' -> $2
+                    // Note that this is pathAlternative rather than just path as path is a special trigger to emit
+                    // the root quad
+                    | '(' pathAlternative ')' -> $2
                     ;
 
 iriOrLiteralOrArray : iriOrLiteral
