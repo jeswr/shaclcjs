@@ -34,17 +34,15 @@ for (const file of testFile) {
 
   const shaclcParser = new Parser();
   // console.log(shaclcParser)
-  SParser._resetBlanks();
-  N3.Parser._resetBlankNodePrefix();
+  // SParser._resetBlanks();
+  // N3.Parser._resetBlankNodePrefix();
 
   const parsedShaclc = shaclcParser.parse(shaclc)
   const parsedttl = (new N3.Parser()).parse(ttl);
 
-  if (!isomorphic(parsedShaclc, parsedttl)) {
-    // console.log('not isomprhic')
-    // console.log(file)
-    
-    const shaclcSet = new N3.Store(parsedShaclc);
+  const writer = new N3.Writer();
+
+  const shaclcSet = new N3.Store(parsedShaclc);
     const turtleSet = new N3.Store(parsedttl.map(quad => {
       return N3.DataFactory.quad(
         quad.subject.termType === 'BlankNode' ? N3.DataFactory.blankNode(quad.subject.value.replace('n3-', 'g_')) : quad.subject,
@@ -52,7 +50,25 @@ for (const file of testFile) {
         quad.object.termType === 'BlankNode' ? N3.DataFactory.blankNode(quad.object.value.replace('n3-', 'g_')) : quad.object,
       )
     }));
-    const writer = new N3.Writer();
+
+  const str = writer.quadsToString([
+    ...shaclcSet
+  ]);
+
+  
+  if (!isomorphic(parsedShaclc, parsedttl)) {
+    // console.log('not isomprhic')
+    // console.log(file)
+    
+    // const shaclcSet = new N3.Store(parsedShaclc);
+    // const turtleSet = new N3.Store(parsedttl.map(quad => {
+    //   return N3.DataFactory.quad(
+    //     quad.subject.termType === 'BlankNode' ? N3.DataFactory.blankNode(quad.subject.value.replace('n3-', 'g_')) : quad.subject,
+    //     quad.predicate.termType === 'BlankNode' ? N3.DataFactory.blankNode(quad.predicate.value.replace('n3-', 'g_')) : quad.predicate,
+    //     quad.object.termType === 'BlankNode' ? N3.DataFactory.blankNode(quad.object.value.replace('n3-', 'g_')) : quad.object,
+    //   )
+    // }));
+    // const writer = new N3.Writer();
 
     for (const quad of shaclcSet) {
       
@@ -67,9 +83,9 @@ for (const file of testFile) {
 
     // const writer = new N3.Writer();
 
-    const str = writer.quadsToString([
-      ...shaclcSet
-    ]);
+    // const str = writer.quadsToString([
+    //   ...shaclcSet
+    // ]);
     const str2 = writer.quadsToString([
       ...turtleSet
     ]);
@@ -113,6 +129,17 @@ for (const file of testFile) {
     
     console.log('='.repeat(10))
   }
+
+  console.log('='.repeat(10))
+    console.log(shaclc)
+    console.log('-'.repeat(10))
+    console.log(
+      prettyTurtle([
+        ...shaclcSet
+      ])
+    )
+    
+    console.log('='.repeat(10))
 
   // console.log(shaclc)
   

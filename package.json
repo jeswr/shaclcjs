@@ -1,11 +1,13 @@
 {
   "name": "shaclcjs",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "A parser for files written with SHACL compact syntax",
-  "main": "shaclc.js",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
   "files": [
-    "shaclc.js",
-    "lib/*.js"
+    "lib/ShaclcParser.js",
+    "lib/index.js",
+    "lib/index.d.ts"
   ],
   "scripts": {
     "build": "jison lib/shaclc.jison -p slr -o lib/ShaclcParser.js",
@@ -36,6 +38,7 @@
     "coveralls": "^3.1.0",
     "eslint": "^7.14.0",
     "jison": "^0.4.18",
+    "rdf-isomorphic": "^1.3.1",
     "rdf-test-suite": "^1.16.0",
     "typescript": "^4.1.2"
   },
@@ -44,7 +47,7 @@
     "test"
   ],
   "dependencies": {
-    "n3": "^1.16.3",
-    "rdf-isomorphic": "^1.3.1"
+    "@rdfjs/types": "^1.1.0",
+    "n3": "^1.16.3"
   }
 }
