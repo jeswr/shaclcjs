@@ -337,10 +337,6 @@ startNodeShape      : '{'
                       if (nodeShapeStack.length === 0) {
                         nodeShapeStack.push(currentNodeShape);
                       } else {
-                        
-                        // nodeShapeStack.push(currentNodeShape = blank());
-                        
-                        // console.log('root emission', currentPropertyNode, currentNodeShape)
                         emit(
                           // In the grammar a path signals the start of a new property declaration
                           currentPropertyNode,
@@ -424,19 +420,6 @@ nodeOr              : nodeNot
                     ;
 nodeNot             : nodeValue
                     | negation nodeValue -> chainProperty('not', ...$2)
-                    // {
-                    //   const b = blank();
-
-                    //   emit(b, $2[0], $2[1]);
-
-                    //   $$ = ['not', b];
-                      
-                    //   // emit(
-                    //   //   $$ = blank(),
-                    //   //   Parser.factory.namedNode(SH + 'not'),
-                    //   //   $1
-                    //   // )
-                    // }
                     ;
 nodeValue           : (TARGET | PARAM) '=' iriOrLiteralOrArray -> [$1, $3]
                     ;
