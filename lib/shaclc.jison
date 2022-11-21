@@ -1,3 +1,6 @@
+// TODO: Work out why the alternativePath
+
+
 %{
 /*
     Grammar specification for a SHACL compact
@@ -15,17 +18,17 @@
       XSD_INTEGER  = XSD + 'integer',
       XSD_DECIMAL  = XSD + 'decimal',
       XSD_DOUBLE   = XSD + 'double',
-      XSD_BOOLEAN  = XSD + 'boolean';
-  var base = '', basePath = '', baseRoot = '', currentNodeShape, currentPropertyNode, nodeShapeStack = [];
-
-    const SH = "http://www.w3.org/ns/shacl#";
-    const OWL = "http://www.w3.org/2002/07/owl#";
+      XSD_BOOLEAN  = XSD + 'boolean',
+      SH = 'http://www.w3.org/ns/shacl#',
+      OWL = 'http://www.w3.org/2002/07/owl#',
+      RDFS = 'http://www.w3.org/2000/01/rdf-schema#';
+  var base = Parser.base = '', basePath = '', baseRoot = '', currentNodeShape, currentPropertyNode, nodeShapeStack = [];
 
     Parser.prefixes = {
-      rdf: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
-      rdfs: 'http://www.w3.org/2000/01/rdf-schema#',
+      rdf: RDF,
+      rdfs: RDFS,
       sh: SH,
-      xsd: 'http://www.w3.org/2001/XMLSchema#'
+      xsd: XSD
     }
 
     // TODO: Make sure all SPARQL supported datatypes are here
@@ -52,60 +55,26 @@
     }
 
     function addList(elems) {
-                        const list = head = blank();
-                        let i = 0, l = elems.length;
+      const list = head = blank();
+      let i = 0, l = elems.length;
 
-                        if (l === 0) {
-                          // TODO: see if this should be here 
-                          Parser.factory.quad(
-                            head, Parser.factory.namedNode(RDF_REST),  Parser.factory.namedNode(RDF_NIL)
-                          )
-                        }
+      if (l === 0) {
+        // TODO: see if this should be here 
+        emit(head, Parser.factory.namedNode(RDF_REST),  Parser.factory.namedNode(RDF_NIL))
+      }
 
-                        elems.forEach(elem => {
-                          Parser.onQuad(
-                            Parser.factory.quad(
-                              head, Parser.factory.namedNode(RDF_FIRST), elem
-                            )
-                          )
+      elems.forEach(elem => {
+        if (elem === undefined) {
+          throw new Error('b')
+        }
+        emit(head, Parser.factory.namedNode(RDF_FIRST), elem)
+        emit(head, Parser.factory.namedNode(RDF_REST),  head = ++i < l ? blank() : Parser.factory.namedNode(RDF_NIL))
+      })
 
-                          Parser.onQuad(
-                            Parser.factory.quad(
-                              head, Parser.factory.namedNode(RDF_REST),  head = ++i < l ? blank() : Parser.factory.namedNode(RDF_NIL)
-                            )
-                          )
-                        })
+      return list;
+    }
 
-                        return list;
-                      }
-
-  // Returns a lowercase version of the given string
-  function lowercase(string) {
-    return string.toLowerCase();
-  }
-  // Appends the item to the array and returns the array
-  function appendTo(array, item) {
-    return array.push(item), array;
-  }
-  // Appends the items to the array and returns the array
-  function appendAllTo(array, items) {
-    return array.push.apply(array, items), array;
-  }
-  // Extends a base object with properties of other objects
-  function extend(base) {
-    if (!base) base = {};
-    for (var i = 1, l = arguments.length, arg; i < l && (arg = arguments[i] || {}); i++)
-      for (var name in arg)
-        base[name] = arg[name];
-    return base;
-  }
-  // Creates an array that contains all items of the given arrays
-  function unionAll() {
-    var union = [];
-    for (var i = 0, l = arguments.length; i < l; i++)
-      union = union.concat.apply(union, arguments[i]);
-    return union;
-  }
+  // TODO: Port over any updates to this from SPARLQL.js
   // Resolves an IRI against a base path
   function resolveIRI(iri) {
     // Strip off possible angular brackets
@@ -139,53 +108,20 @@
       return basePath + iri;
     }
   }
-  // If the item is a variable, ensures it starts with a question mark
-  function toVar(variable) {
-    if (variable) {
-      var first = variable[0];
-      if (first === '?' || first === '$') return Parser.factory.variable(variable.substr(1));
-    }
-    return variable;
+
+  function expandPrefix(iri) {
+    const namePos = iri.indexOf(':'),
+          prefix = iri.substr(0, namePos),
+          expansion = Parser.prefixes[prefix];
+    
+    if (!expansion) throw new Error('Unknown prefix: ' + prefix);
+    
+    return resolveIRI(expansion + iri.substr(namePos + 1));
   }
-  // Creates an operation with the given name and arguments
-  function operation(operatorName, args) {
-    return { type: 'operation', operator: operatorName, args: args || [] };
-  }
-  // Creates an expression with the given type and attributes
-  function expression(expr, attr) {
-    var expression = { expression: expr === '*'? new Wildcard() : expr };
-    if (attr)
-      for (var a in attr)
-        expression[a] = attr[a];
-    return expression;
-  }
-  // Creates a path with the given type and items
-  function path(type, items) {
-    return { type: 'path', pathType: type, items: items };
-  }
-  // Transforms a list of operations types and arguments into a tree of operations
-  function createOperationTree(initialExpression, operationList) {
-    for (var i = 0, l = operationList.length, item; i < l && (item = operationList[i]); i++)
-      initialExpression = operation(item[0], [initialExpression, item[1]]);
-    return initialExpression;
-  }
-  // Group datasets by default and named
-  function groupDatasets(fromClauses, groupName) {
-    var defaults = [], named = [], l = fromClauses.length, fromClause, group = {};
-    if (!l)
-      return null;
-    for (var i = 0; i < l && (fromClause = fromClauses[i]); i++)
-      (fromClause.named ? named : defaults).push(fromClause.iri);
-    group[groupName || 'from'] = { default: defaults, named: named };
-    return group;
-  }
+  
   // Converts the string to a number
   function toInt(string) {
     return parseInt(string, 10);
-  }
-  // Transforms a possibly single group into its patterns
-  function degroupSingle(group) {
-    return group.type === 'group' && group.patterns.length === 1 ? group.patterns[0] : group;
   }
   // Creates a literal with the given value and type
   function createTypedLiteral(value, type) {
@@ -197,14 +133,6 @@
   // Creates a literal with the given value and language
   function createLangLiteral(value, lang) {
     return Parser.factory.literal(value, lang);
-  }
-  // Creates a triple with the given subject, predicate, and object
-  function triple(subject, predicate, object) {
-    var triple = {};
-    if (subject   != null) triple.subject   = subject;
-    if (predicate != null) triple.predicate = predicate;
-    if (object    != null) triple.object    = object;
-    return triple;
   }
   // Creates a new blank node
   function blank(name) {
@@ -248,141 +176,22 @@
     catch (error) { return ''; }
     return string;
   }
-  // Creates a list, collecting its (possibly blank) items and triples associated with those items
-  function createList(objects) {
-    var list = blank(), head = list, listItems = [], listTriples, triples = [];
-    objects.forEach(function (o) { listItems.push(o.entity); appendAllTo(triples, o.triples); });
-    // Build an RDF list out of the items
-    for (var i = 0, j = 0, l = listItems.length, listTriples = Array(l * 2); i < l;)
-      listTriples[j++] = triple(head, Parser.factory.namedNode(RDF_FIRST), listItems[i]),
-      listTriples[j++] = triple(head, Parser.factory.namedNode(RDF_REST),  head = ++i < l ? blank() : Parser.factory.namedNode(RDF_NIL));
-    // Return the list's identifier, its triples, and the triples associated with its items
-    return { entity: list, triples: appendAllTo(listTriples, triples) };
-  }
-  // Creates a blank node identifier, collecting triples with that blank node as subject
-  function createAnonymousObject(propertyList) {
-    var entity = blank();
-    return {
-      entity: entity,
-      triples: propertyList.map(function (t) { return extend(triple(entity), t); })
-    };
-  }
-  // Collects all (possibly blank) objects, and triples that have them as subject
-  function objectListToTriples(predicate, objectList, otherTriples) {
-    var objects = [], triples = [];
-    objectList.forEach(function (l) {
-      objects.push(triple(null, predicate, l.entity));
-      appendAllTo(triples, l.triples);
-    });
-    return unionAll(objects, otherTriples || [], triples);
-  }
-  // Simplifies groups by merging adjacent BGPs
-  function mergeAdjacentBGPs(groups) {
-    var merged = [], currentBgp;
-    for (var i = 0, group; group = groups[i]; i++) {
-      switch (group.type) {
-        // Add a BGP's triples to the current BGP
-        case 'bgp':
-          if (group.triples.length) {
-            if (!currentBgp)
-              appendTo(merged, currentBgp = group);
-            else
-              appendAllTo(currentBgp.triples, group.triples);
-          }
-          break;
-        // All other groups break up a BGP
-        default:
-          // Only add the group if its pattern is non-empty
-          if (!group.patterns || group.patterns.length > 0) {
-            appendTo(merged, group);
-            currentBgp = null;
-          }
-      }
+
+  function emit(s, p, o) {
+    if (!s.termType || !p.termType || p.value.includes(',') || !o.termType) {
+      throw new Error(`boo ${s.value} ${p.value} ${o.value}`)
     }
-    return merged;
+    Parser.onQuad(Parser.factory.quad(s, p, o))
   }
-  // Return the id of an expression
-  function getExpressionId(expression) {
-    return expression.variable ? expression.variable.value : expression.value || expression.expression.value;
+
+  function emitProperty(p, o) {
+    emit(currentPropertyNode, Parser.factory.namedNode(SH + p), o)
   }
-  // Get all "aggregate"'s from an expression
-  function getAggregatesOfExpression(expression) {
-    if (!expression) {
-      return [];
-    }
-    if (expression.type === 'aggregate') {
-      return [expression];
-    } else if (expression.type === "operation") {
-      const aggregates = [];
-      for (const arg of expression.args) {
-        aggregates.push(...getAggregatesOfExpression(arg));
-      }
-      return aggregates;
-    }
-    return [];
-  }
-  // Get all variables used in an expression
-  function getVariablesFromExpression(expression) {
-    const variables = new Set();
-    const visitExpression = function (expr) {
-      if (!expr) { return; }
-      if (expr.termType === "Variable") {
-        variables.add(expr);
-      } else if (expr.type === "operation") {
-        expr.args.forEach(visitExpression);
-      }
-    };
-    visitExpression(expression);
-    return variables;
-  }
-  // Helper function to flatten arrays
-  function flatten(input, depth = 1, stack = []) {
-    for (const item of input) {
-        if (depth > 0 && item instanceof Array) {
-          flatten(item, depth - 1, stack);
-        } else {
-          stack.push(item);
-        }
-    }
-    return stack;
-  }
-  function isVariable(term) {
-    return term.termType === 'Variable';
-  }
-  function getBoundVarsFromGroupGraphPattern(pattern) {
-    if (pattern.triples) {
-      const boundVars = [];
-      for (const triple of pattern.triples) {
-        if (isVariable(triple.subject)) boundVars.push(triple.subject.value);
-        if (isVariable(triple.predicate)) boundVars.push(triple.predicate.value);
-        if (isVariable(triple.object)) boundVars.push(triple.object.value);
-      }
-      return boundVars;
-    } else if (pattern.patterns) {
-      const boundVars = [];
-      for (const pat of pattern.patterns) {
-        boundVars.push(...getBoundVarsFromGroupGraphPattern(pat));
-      }
-      return boundVars;
-    }
-    return [];
-  }
-  // Helper function to find duplicates in array
-  function getDuplicatesInArray(array) {
-    const sortedArray = array.slice().sort();
-    const duplicates = [];
-    for (let i = 0; i < sortedArray.length - 1; i++) {
-      if (sortedArray[i + 1] == sortedArray[i]) {
-        duplicates.push(sortedArray[i]);
-      }
-    }
-    return duplicates;
-  }
-  function ensureSparqlStar(value) {
-    if (!Parser.sparqlStar) {
-      throw new Error('SPARQL* support is not enabled');
-    }
-    return value;
+
+  function chainProperty(name, p, o) {
+    const b = blank();
+    emit(b, Parser.factory.namedNode(SH + p), o);
+    return [name, b];
   }
 %}
 
@@ -391,7 +200,7 @@
 PASS                    [ \t\r\n]+ -> skip
 COMMENT                 '#' ~[\r\n]* -> skip
 
-IRIREF                  '<' (?:[^<>\"\{\}\|\^`\\\u0000-\u0020])* '>'
+IRIREF                  '<' (~[^=<>\"\{\}\|\^`\\\u0000-\u0020] | {UCHAR})* '>'
 PNAME_NS                {PN_PREFIX}? ':'
 PNAME_LN                {PNAME_NS} {PN_LOCAL}
 ATPNAME_NS              '@' {PN_PREFIX}? ':'
@@ -401,6 +210,7 @@ INTEGER                 [+-]?[0-9]+
 DECIMAL                 [+-]?[0-9]*'.'[0-9]+
 DOUBLE                  [+-]?([0-9]+ '.' [0-9]* {EXPONENT} | '.'? [0-9]+ {EXPONENT})
 EXPONENT                [eE] [+-]? [0-9]+
+// TODO: Refactor these into just STRING_LITERAL ans STRING_LITERAL_LONG with an or
 STRING_LITERAL1         "'"(?:(?:[^\u0027\u005C\u000A\u000D])|{ECHAR})*"'"
 STRING_LITERAL2         "\""(?:(?:[^\u0022\u005C\u000A\u000D])|{ECHAR})*'"'
 STRING_LITERAL_LONG1    "'''"(?:(?:"'"|"''")?(?:[^'\\]|{ECHAR}))*"'''"
@@ -481,6 +291,8 @@ PARAM                   'deactivated' | 'severity' | 'message' | 'class' | 'data
 
 "/"                     return '/'
 "="                     return '='
+"@"                     return '@'
+"^"                     return '^'
 
 <<EOF>>                 return 'EOF'
 
@@ -492,96 +304,50 @@ PARAM                   'deactivated' | 'severity' | 'message' | 'class' | 'data
 
 %%
 
-shaclDoc            : directive* (nodeShape|shapeClass)* EOF;
+// eof                 : EOF -> emit(Parser.base, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(OWL + 'Ontology'))
+//                     ;
+
+// TODO: Work out why this occurs multiple times when the empty file is called with other things (the base from the previous file is somehow getting leaked thorugh)
+shaclDoc            : directive* (nodeShape|shapeClass)* EOF -> emit(Parser.base, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(OWL + 'Ontology'))
+                    ;
 
 directive           : baseDecl | importsDecl | prefixDecl ;
-baseDecl            : KW_BASE  IRIREF 
-                    {
-                      Parser.base = Parser.factory.namedNode($2.slice(1, -1));
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          Parser.base,
-                          Parser.factory.namedNode(RDF + 'type'),
-                          Parser.factory.namedNode(OWL + 'Ontology')
-                        )
-                      )
-                    }
-                    ;
-importsDecl         : KW_IMPORTS IRIREF
-                    {
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          Parser.base,
-                          Parser.factory.namedNode(OWL + 'imports'),
-                          Parser.factory.namedNode($2.slice(1, -1))
-                        )
-                      )
-                    }
-                    ;
-prefixDecl          : KW_PREFIX PNAME_NS IRIREF 
-                    {
-                        // if (!Parser.prefixes) Parser.prefixes = {
-                        //   rdf: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
-                        //   rdfs: 'http://www.w3.org/2000/01/rdf-schema#',
-                        //   sh: 'http://www.w3.org/ns/shacl#',
-                        //   xsd: 'http://www.w3.org/2001/XMLSchema#'
-                        // };
-                        $2 = $2.substr(0, $2.length - 1);
-                        $3 = resolveIRI($3);
-                        Parser.prefixes[$2] = $3;
-                    }
+                    // TODO: Remove the duplicate declaration of base
+baseDecl            : KW_BASE  IRIREF -> base = Parser.base = Parser.factory.namedNode($2.slice(1, -1))
                     ;
 
-nodeShapeIri        : iri
-                    {
-                      // console.log('iri is', $1)
-                      currentNodeShape = $1
-                    }
+                    // TODO: See if this should be resolveIRI($2)
+importsDecl         : KW_IMPORTS IRIREF -> emit(Parser.base, Parser.factory.namedNode(OWL + 'imports'), Parser.factory.namedNode($2.slice(1, -1)))
+                    ;
+
+prefixDecl          : KW_PREFIX PNAME_NS IRIREF -> Parser.prefixes[$2.substr(0, $2.length - 1)] = resolveIRI($3)
+                    ;
+
+nodeShapeIri        : iri -> emit(currentNodeShape = $1, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(SH + 'NodeShape'))
                     ;
 
 nodeShape           : KW_SHAPE nodeShapeIri targetClass? nodeShapeBody
-                    {
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          currentNodeShape,
-                          Parser.factory.namedNode(RDF + 'type'),
-                          Parser.factory.namedNode(SH + 'NodeShape')
-                        )
-                      )
-
-                      if ($3) {
-                        for (const node of $3) {
-                          Parser.onQuad(
-                            Parser.factory.quad(
-                            currentNodeShape,
-                            Parser.factory.namedNode(SH + 'targetClass'),
-                            node
-                          )
-                        )  
-                        }
-                      }
-                      
-                      // console.log($2, $3, $4)
-                    }
                     ;
-shapeClass          : KW_SHAPE_CLASS iri nodeShapeBody ;
+
+shapeClass          : KW_SHAPE_CLASS nodeShapeIri nodeShapeBody -> emit(currentNodeShape, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(RDFS + 'Class'))
+                    ;
 
 startNodeShape      : '{'
                     {
                       if (nodeShapeStack.length === 0) {
                         nodeShapeStack.push(currentNodeShape);
                       } else {
-                        // nodeShapeStack.push(currentNodeShape = blank());
-                        Parser.onQuad(
-                          Parser.factory.quad(
-                            // In the grammar a path signals the start of a new property declaration
-                            currentPropertyNode,
-                            Parser.factory.namedNode(SH + 'node'),
-                            currentNodeShape = blank(),
-                          )
+                        emit(
+                          // In the grammar a path signals the start of a new property declaration
+                          currentPropertyNode,
+                          Parser.factory.namedNode(SH + 'node'),
+                          currentNodeShape = blank(),
                         )
+                        // currentNodeShape = blank()
                         nodeShapeStack.push(currentNodeShape);
                       }
+          
+                      $$ = currentNodeShape;
                       
                       
                       // TODO: Push a new nodeShape blankNode here when we are on a nested shape
@@ -592,6 +358,7 @@ startNodeShape      : '{'
 
 endNodeShape        : '}'
                     {
+                      // console.log('end node shape')
                       if (nodeShapeStack.length > 0) {
                         currentNodeShape = nodeShapeStack.pop();
                       }
@@ -602,230 +369,131 @@ endNodeShape        : '}'
                     }
                     ;
 
-nodeShapeBody       : startNodeShape constraint* endNodeShape;
-targetClass         : '->' iri+
-                    {
-                      $$ = $2
-                    };
+nodeShapeBody       : startNodeShape constraint* endNodeShape -> $1
+                    ;
 
-constraint          : ( nodeOr+ | propertyShape ) '.' ;
+targetClass         : '->' iri+ -> $2.forEach(node => { emit(currentNodeShape, Parser.factory.namedNode(SH + 'targetClass'), node) })
+                    ;
+
+constraint          : ( nodeOrEmit+ | propertyShape ) '.' 
+                    {
+                      // console.log('contraint')
+                    }
+                    ;
 
 orNotComponent      : '|' nodeNot -> $2
                     ;
 
+nodeOrEmit          : nodeOr -> emit(currentNodeShape, Parser.factory.namedNode(SH + $1[0]), $1[1])
+                    ;
+
 nodeOr              : nodeNot
+                    {
+                      // console.log('ndoe not')
+                    }
                     | nodeNot orNotComponent+
                     {
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          $$ = blank(),
-                          Parser.factory.namedNode(SH + $1),
-                          addList([$1, ...$2])
-                        )
-                      )
+                      // console.log(
+                      //   [$1, ...$2]
+                      // )
+                      // const b = blank()
+                      // emit(
+                      //   b,
+                      //   Parser.factory.namedNode(SH + $1),
+                      //   addList([$1, ...$2].map(elem => {
+                      //     const x = blank();
+                      //     // console.log('or on', ...elem)
+                      //     emit(x, Parser.factory.namedNode(SH + elem[0]), elem[1]);
+                      //     return x;
+                      //   }))
+                      // )
+
+                      const o = addList([$1, ...$2].map(elem => {
+                        const x = blank();
+                        // console.log('or on', ...elem)
+                        emit(x, Parser.factory.namedNode(SH + elem[0]), elem[1]);
+                        return x;
+                      }))
+
+                      $$ = ['or',  o]
                     }
                     ;
 nodeNot             : nodeValue
-                    | negation nodeValue
-                    {
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          $$ = blank(),
-                          Parser.factory.namedNode(SH + 'not'),
-                          $1
-                        )
-                      )
-                    }
+                    | negation nodeValue -> chainProperty('not', ...$2)
                     ;
-nodeValue           : nodeParam '=' iriOrLiteralOrArray
-                    {
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          currentNodeShape,
-                          Parser.factory.namedNode(SH + $1),
-                          $3
-                        )
-                      )
-                      
-                      
-                      
-                      
-                      
-                      // Parser.factory.namedNode(SH + $1)
-                      
-                      // console.log('node param', $1)
-                    }
+nodeValue           : (TARGET | PARAM) '=' iriOrLiteralOrArray -> [$1, $3]
                     ;
 
-propertyShape       : path ( propertyCount | propertyOr )* ;
+propertyShape       : path ( propertyCount | propertyOr )*
+                    ;
 
 propertyOrComponent : '|' propertyNot -> $2
                     ;
 
+// Top level property emission
 propertyOr          : propertyNot
-                    | propertyNot propertyOrComponent+ 
                     {
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          $$ = blank(),
-                          Parser.factory.namedNode(SH + 'or'),
-                          addList([$1, ...$2])
-                        )
+                      // console.log('emitting property not', currentPropertyNode, ...$1)
+                      // TODO: Fix this workaround, we should be able to emit everything - and the blank node from
+                      // the shape body should be emitted here
+                      $$ = $1 && emitProperty(...$1)
+                    }
+                    | propertyNot propertyOrComponent+
+                    {
+                      $$ = emitProperty(
+                        'or',
+                        addList([$1, ...$2].map(elem => {
+                          const x = blank();
+                          // console.log('or on', ...elem)
+                          emit(x, Parser.factory.namedNode(SH + elem[0]), elem[1]);
+                          return x;
+                        }))
                       )
                     }
                     ;
-
 
 propertyNot         : propertyAtom
-                    | negation propertyAtom
-                    {
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          $$ = blank(),
-                          Parser.factory.namedNode(SH + 'not'),
-                          $2
-                        )
-                      )
-                    }
+                    | negation propertyAtom -> chainProperty('not', ...$2)
                     ;
 
-
-
-propertyAtom        : propertyType
-                    | nodeKind
-                    | shapeRef
-                    | propertyValue
-                    | nodeShapeBody 
+propertyAtom        : iri -> [datatypes[$1.value] ? 'datatype' : 'class', $1]
+                    | NODEKIND -> ['nodeKind', Parser.factory.namedNode(SH + $1)]
+                    | shapeRef -> ['node', Parser.factory.namedNode($1)]
+                    | PARAM '=' iriOrLiteralOrArray -> [$1, $3]
+                    // TODO: Fix this workaround (the node *should* be emitted this way)
+                    | nodeShapeBody -> undefined //['node', $1]
                     ;
-propertyCount       : '[' propertyMinCount '..' propertyMaxCount ']' ;
-propertyMinCount    : INTEGER
-                    {
-                      if ($1 > 0)
-                        Parser.onQuad(
-                          Parser.factory.quad(
-                            currentPropertyNode,
-                            Parser.factory.namedNode(SH + 'minCount'),
-                            createTypedLiteral($1, XSD_INTEGER)
-                          )
-                        )
-                    }
+
+propertyCount       : '[' propertyMinCount '..' propertyMaxCount ']' 
                     ;
-propertyMaxCount    : INTEGER
-                    {
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          currentPropertyNode,
-                          Parser.factory.namedNode(SH + 'maxCount'),
-                          createTypedLiteral($1, XSD_INTEGER)
-                        )
-                      )
-                    }
+
+propertyMinCount    : INTEGER -> $1 > 0 && emitProperty('minCount', createTypedLiteral($1, XSD_INTEGER))
+                    ;
+
+propertyMaxCount    : INTEGER -> emitProperty('maxCount', createTypedLiteral($1, XSD_INTEGER))
                     | '*'
                     ;
-propertyType        : iri
-                    {
-                      // datatypes[$1.value]
-                      
-                      // TODO: See if the problem of datatype is occuring here
-                      // NOTE: This *is* the clase of the shapeRef class problem
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          currentPropertyNode,
-                          Parser.factory.namedNode(SH + (datatypes[$1.value] ? 'datatype' : 'class')),
-                          $1
-                        )
-                      )
-                      // console.log('property', $1)
-                    }
-                    ;
-nodeKind            : NODEKIND
-                    {
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          currentPropertyNode,
-                          Parser.factory.namedNode(SH + 'nodeKind'),
-                          Parser.factory.namedNode(SH + $1),
-                        )
-                      )
-                    }
-                    ;
-shapeRef            : ATPNAME_LN
-                    {
-                      const ind = $1.indexOf(':');
 
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          currentPropertyNode,
-                          Parser.factory.namedNode(SH + 'node'),
-                          // TODO: See if we should be doing resolve iri here
-                          Parser.factory.namedNode(Parser.prefixes[$1.slice(1, ind)] + $1.slice(ind + 1)),
-                        )
-                      )
-
-                      // TODO: See if we should be doing resolve iri here
-                      // console.log('1', Parser.prefixes[$1.slice(1, ind)] + $1.slice(ind + 1))
-                    }
-                    | ATPNAME_NS
-                    {
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          currentPropertyNode,
-                          Parser.factory.namedNode(SH + 'node'),
-                          // TODO: Add test for this
-                          Parser.factory.namedNode(Parser.prefixes[$1.slice(1, $1.length - 1)]),
-                        )
-                      )
-                    }
-                    | '@' IRIREF
-                    {
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          currentPropertyNode,
-                          Parser.factory.namedNode(SH + 'node'),
-                          // TODO: Add test for this
-                          Parser.factory.namedNode(resolveIRI($2)),
-                        )
-                      )
-                    } //-> Parser.factory.namedNode(resolveIRI($2))
+                    // TODO: Check this
+shapeRef            : (ATPNAME_LN | ATPNAME_NS) -> expandPrefix($1.slice(1))
+                    | '@' IRIREF -> resolveIRI($2)
                     ;
 
-propertyValue       : propertyParam '=' iriOrLiteralOrArray
-                    {
-                      // console.log(currentPropertyNode, $1, $3)
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          currentPropertyNode,
-                          Parser.factory.namedNode(SH + $1),
-                          $3
-                        )
-                      )
-                    }
-                    ;
 negation            : '!' ;
 
 path                : pathAlternative
                     {
                       
-                      // currentPropertyNode = blank();
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          // In the grammar a path signals the start of a new property declaration
-                          currentNodeShape,
-                          Parser.factory.namedNode(SH + 'property'),
-                          currentPropertyNode = blank(),
-                        )
+
+
+                      emit(
+                        // In the grammar a path signals the start of a new property declaration
+                        currentNodeShape,
+                        Parser.factory.namedNode(SH + 'property'),
+                        currentPropertyNode = blank(),
                       )
                       
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          // In the grammar a path signals the start of a new property declaration
-                          currentPropertyNode,
-                          Parser.factory.namedNode(SH + 'path'),
-                          $1
-                        )
-                      )
-
-                      // console.log(currentPropertyNode)
+                      emitProperty('path', $1)
                     }
                     ;
 
@@ -835,13 +503,13 @@ additionalAlternative : '|' pathSequence -> $2
 pathAlternative     : pathSequence
                     | pathSequence additionalAlternative+
                     {
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          $$ = blank(),
-                          Parser.factory.namedNode(SH + 'alternativePath'),
-                          addList([$1, ...$2])
-                        )
+                      const n = blank();
+                      emit(
+                        n,
+                        Parser.factory.namedNode(SH + 'alternativePath'),
+                        addList([$1, ...$2])
                       )
+                      $$ = n
                     }
                     ;
 
@@ -849,168 +517,60 @@ additionalSequence : '/' pathEltOrInverse -> $2
                     ;
 
 pathSequence        : pathEltOrInverse
-                    | pathEltOrInverse additionalSequence+
-                    {
-                      
-                      
-                      
-                      $$ = addList([$1, ...$2])
-                      
-                      
-                      // 
-                      // console.log('seq')
-                    }
-                    // {
-                    //   console.log('seq', $1, $2)
-                    // }
+                    | pathEltOrInverse additionalSequence+ -> addList([$1, ...$2])
+
                     ;
-pathElt             : pathPrimary pathMod? 
+pathElt             : pathPrimary
+                    | pathPrimary pathMod
                     {
-                      if ($2) {
-                        Parser.onQuad(
-                        Parser.factory.quad(
-                          $$ = blank(),
-                          $2,
-                          $1
-                        )
-                      )
-                      } else {
-                        $$ = $1
-                      }
+                      emit($$ = blank(), Parser.factory.namedNode(SH + $2), $1)
                     }
                     ;
 pathEltOrInverse    : pathElt
-                    | pathInverse pathElt 
+                    | pathInverse pathElt
                     {
-                      Parser.onQuad(
-                        Parser.factory.quad(
-                          $$ = blank(),
-                          Parser.factory.namedNode(SH + 'inversePath'),
-                          $2
-                        )
-                      )
+                      emit($$ = blank(), Parser.factory.namedNode(SH + 'inversePath'), $2)
                     }
                     ;
 pathInverse         : '^' ;
-pathMod             : '?' -> Parser.factory.namedNode(SH + 'zeroOrOnePath')
-                    | '*' -> Parser.factory.namedNode(SH + 'zeroOrMorePath')
-                    | '+' -> Parser.factory.namedNode(SH + 'oneOrMorePath')
+pathMod             : '?' -> 'zeroOrOnePath'
+                    | '*' -> 'zeroOrMorePath'
+                    | '+' -> 'oneOrMorePath'
                     ;
 
 pathPrimary         : iri
-                    | '(' path ')'
-                    {
-                      console.log('path', $2)
-                      
-                      // TODO: Refactor this
-                      // var list = head = blank();
-                      // let i = 0, l = $2?.length;
-
-                      // $2?.forEach(elem => {
-                      //   Parser.onQuad(
-                      //     Parser.factory.quad(
-                      //       head, Parser.factory.namedNode(RDF_FIRST), elem
-                      //     )
-                      //   )
-
-                      //   Parser.onQuad(
-                      //     Parser.factory.quad(
-                      //       head, Parser.factory.namedNode(RDF_REST),  head = ++i < l ? blank() : Parser.factory.namedNode(RDF_NIL)
-                      //     )
-                      //   )
-                      // })
-
-                      // $$ = list
-                    }
+                    // TODO: Check this (I don' think there needs to be any other special logic for the brackets here)
+                    // Note that this is pathAlternative rather than just path as path is a special trigger to emit
+                    // the root quad
+                    | '(' pathAlternative ')' -> $2
                     ;
 
-iriOrLiteralOrArray : iriOrLiteral | array ;
+iriOrLiteralOrArray : iriOrLiteral
+                    | '[' iriOrLiteral* ']' -> addList($2)
+                    ;
+
 iriOrLiteral        : iri | literal ;
 
-iri
-    : IRIREF -> Parser.factory.namedNode(resolveIRI($1))
-    | PNAME_LN
-    {
-      var namePos = $1.indexOf(':'),
-          prefix = $1.substr(0, namePos),
-          expansion = Parser.prefixes[prefix];
-      if (!expansion) throw new Error('Unknown prefix: ' + prefix);
-      var uriString = resolveIRI(expansion + $1.substr(namePos + 1));
-      // console.log(Parser)
-      $$ = Parser.factory.namedNode(uriString);
-    }
-    | PNAME_NS
-    {
-      $1 = $1.substr(0, $1.length - 1);
-      if (!($1 in Parser.prefixes)) throw new Error('Unknown prefix: ' + $1);
-      var uriString = resolveIRI(Parser.prefixes[$1]);
-      $$ = Parser.factory.namedNode(uriString);
-    }
+iri : IRIREF -> Parser.factory.namedNode(resolveIRI($1))
+    // TODO: Double check expand prefix works on both
+    | (PNAME_LN | PNAME_NS) -> Parser.factory.namedNode(expandPrefix($1))
     ;
 
-literal             : rdfLiteral
-                    | numericLiteral
-                    | booleanLiteral -> createTypedLiteral($1.toLowerCase(), XSD_BOOLEAN)
-                    ;
-
-booleanLiteral      : KW_TRUE | KW_FALSE ;
-
-numericLiteral      : INTEGER -> createTypedLiteral($1, XSD_INTEGER)
-                    | DECIMAL -> createTypedLiteral($1, XSD_DECIMAL)
-                    | DOUBLE -> createTypedLiteral($1.toLowerCase(), XSD_DOUBLE)
-                    ;
-
-rdfLiteral       
+literal
+    // RDF LITERALS
     : string -> createTypedLiteral($1)
     // TODO: check this
     | string LANGTAG  -> createLangLiteral($1, lowercase($2.substr(1)))
     | string '^^' iri -> createTypedLiteral($1, $3)
+    // NUMERIC LITERALS
+    | INTEGER -> createTypedLiteral($1, XSD_INTEGER)
+    | DECIMAL -> createTypedLiteral($1, XSD_DECIMAL)
+    | DOUBLE -> createTypedLiteral($1.toLowerCase(), XSD_DOUBLE)
+    // BOOLEAN LITERALS
+    | (KW_TRUE | KW_FALSE) -> createTypedLiteral($1.toLowerCase(), XSD_BOOLEAN)
     ;
-
-datatype            : iri ;
 
 string
-    : STRING_LITERAL1 -> unescapeString($1, 1)
-    | STRING_LITERAL2 -> unescapeString($1, 1)
-    | STRING_LITERAL_LONG1 -> unescapeString($1, 3)
-    | STRING_LITERAL_LONG2 -> unescapeString($1, 3)
+    : (STRING_LITERAL1 | STRING_LITERAL2) -> unescapeString($1, 1)
+    | (STRING_LITERAL_LONG1 | STRING_LITERAL_LONG2) -> unescapeString($1, 3)
     ;
-
-array               : '[' iriOrLiteral* ']'
-                    {
-                      // var list = head = blank();
-
-                      
-
-
-                      // let i = 0, l = $2?.length;
-
-                      // $2?.forEach(elem => {
-                      //   Parser.onQuad(
-                      //     Parser.factory.quad(
-                      //       head, Parser.factory.namedNode(RDF_FIRST), elem
-                      //     )
-                      //   )
-
-                      //   Parser.onQuad(
-                      //     Parser.factory.quad(
-                      //       head, Parser.factory.namedNode(RDF_REST),  head = ++i < l ? blank() : Parser.factory.namedNode(RDF_NIL)
-                      //     )
-                      //   )
-                      // })
-
-                      $$ = addList($2)
-                    }
-                    ;
-
-nodeParam           : TARGET | PARAM 
-                    {
-                      // $$ = $1
-                      console.log('node param', $1)
-                    }
-                    ;
-propertyParam       : PARAM
-                    {
-                      console.log('property param', $1, blank())
-                    }
-                    ;

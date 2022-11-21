@@ -28,14 +28,14 @@ parser.Parser.factory = DataFactory;
 let i = 0;
 
 parser.Parser.onQuad = (quad) => {
-	console.log(quad.subject?.value, quad.predicate?.value, quad.object?.value)
+	// console.log(quad.subject?.value, quad.predicate?.value, quad.object?.value)
 	i++;
 }
 
-console.log(parser.parse(testFile));
+// console.log(parser.parse(testFile));
 // console.log(parser.lexer)
 
-console.log(i)
+// console.log(i)
 
 const fs = require('fs');
 const path = require('path')
