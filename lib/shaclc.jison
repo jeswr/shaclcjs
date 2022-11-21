@@ -308,7 +308,7 @@ PARAM                   'deactivated' | 'severity' | 'message' | 'class' | 'data
 //                     ;
 
 // TODO: Work out why this occurs multiple times when the empty file is called with other things (the base from the previous file is somehow getting leaked thorugh)
-shaclDoc            : directive* (nodeShape|shapeClass)* EOF -> emit(Parser.base || Parser.factory.namedNode('urn:x-base:default'), Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(OWL + 'Ontology'))
+shaclDoc            : directive* (nodeShape|shapeClass)* EOF -> emit(Parser.base, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(OWL + 'Ontology'))
                     ;
 
 directive           : baseDecl | importsDecl | prefixDecl ;
