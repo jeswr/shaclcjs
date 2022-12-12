@@ -21,7 +21,7 @@
     "shex"
   ],
   "scripts": {
-    "build": "jison lib/shaclc.jison -p slr -o lib/ShaclcParser.js",
+    "build": "jison lib/shaclc.jison -p slr -m js -o lib/ShaclcParser.js && echo '\n\nmodule.exports=ShaclcParser' >> lib/ShaclcParser.js",
     "test": "node test/Conformance-test.js",
     "prepublishOnly": "npm run build",
     "spec-base-query": "rdf-test-suite spec/parser.js http://w3c.github.io/rdf-tests/sparql11/data-sparql11/manifest-all.ttl -s http://www.w3.org/TR/sparql11-query/ -c .rdf-test-suite-cache/",
