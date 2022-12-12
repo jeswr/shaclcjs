@@ -304,9 +304,6 @@ PARAM                   'deactivated' | 'severity' | 'message' | 'class' | 'data
 
 %%
 
-// eof                 : EOF -> emit(Parser.base, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(OWL + 'Ontology'))
-//                     ;
-
 // TODO: Work out why this occurs multiple times when the empty file is called with other things (the base from the previous file is somehow getting leaked thorugh)
 shaclDoc            : directive* (nodeShape|shapeClass)* EOF -> emit(Parser.base, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(OWL + 'Ontology'))
                     ;
@@ -352,20 +349,17 @@ startNodeShape      : '{'
                       
                       // TODO: Push a new nodeShape blankNode here when we are on a nested shape
                       // and mint a sh:node triple
-                      // console.log('>'.repeat(10))
                     }
                     ;
 
 endNodeShape        : '}'
                     {
-                      // console.log('end node shape')
                       if (nodeShapeStack.length > 0) {
                         currentNodeShape = nodeShapeStack.pop();
                       }
                       
                       
                       // TODO: Pop the new nodeShape blankNode here
-                      // console.log('<'.repeat(10))
                     }
                     ;
 
@@ -375,10 +369,7 @@ nodeShapeBody       : startNodeShape constraint* endNodeShape -> $1
 targetClass         : '->' iri+ -> $2.forEach(node => { emit(currentNodeShape, Parser.factory.namedNode(SH + 'targetClass'), node) })
                     ;
 
-constraint          : ( nodeOrEmit+ | propertyShape ) '.' 
-                    {
-                      // console.log('contraint')
-                    }
+constraint          : ( nodeOrEmit+ | propertyShape ) '.'
                     ;
 
 orNotComponent      : '|' nodeNot -> $2
@@ -393,24 +384,8 @@ nodeOr              : nodeNot
                     }
                     | nodeNot orNotComponent+
                     {
-                      // console.log(
-                      //   [$1, ...$2]
-                      // )
-                      // const b = blank()
-                      // emit(
-                      //   b,
-                      //   Parser.factory.namedNode(SH + $1),
-                      //   addList([$1, ...$2].map(elem => {
-                      //     const x = blank();
-                      //     // console.log('or on', ...elem)
-                      //     emit(x, Parser.factory.namedNode(SH + elem[0]), elem[1]);
-                      //     return x;
-                      //   }))
-                      // )
-
                       const o = addList([$1, ...$2].map(elem => {
                         const x = blank();
-                        // console.log('or on', ...elem)
                         emit(x, Parser.factory.namedNode(SH + elem[0]), elem[1]);
                         return x;
                       }))
@@ -431,20 +406,13 @@ propertyOrComponent : '|' propertyNot -> $2
                     ;
 
 // Top level property emission
-propertyOr          : propertyNot
-                    {
-                      // console.log('emitting property not', currentPropertyNode, ...$1)
-                      // TODO: Fix this workaround, we should be able to emit everything - and the blank node from
-                      // the shape body should be emitted here
-                      $$ = $1 && emitProperty(...$1)
-                    }
+propertyOr          : propertyNot -> $1 && emitProperty(...$1)
                     | propertyNot propertyOrComponent+
                     {
                       $$ = emitProperty(
                         'or',
                         addList([$1, ...$2].map(elem => {
                           const x = blank();
-                          // console.log('or on', ...elem)
                           emit(x, Parser.factory.namedNode(SH + elem[0]), elem[1]);
                           return x;
                         }))
@@ -483,9 +451,6 @@ negation            : '!' ;
 
 path                : pathAlternative
                     {
-                      
-
-
                       emit(
                         // In the grammar a path signals the start of a new property declaration
                         currentNodeShape,
