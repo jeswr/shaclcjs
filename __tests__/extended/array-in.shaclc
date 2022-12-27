@@ -1,0 +1,13 @@
+BASE <http://example.org/array-in>
+
+PREFIX ex: <http://example.org/test#>
+
+shape ex:TestShape {
+	ex:property in=[ex:Instance1 true "string" 42] .
+}
+
+// text/turtle //
+
+@prefix ex: <http://example.org/test#> .
+
+ex:TestShape ex:myAnnotation 1 .

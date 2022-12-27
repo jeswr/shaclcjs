@@ -232,6 +232,9 @@ NODEKIND                'BlankNode' | 'IRI' | 'Literal' | 'BlankNodeOrIRI' | 'Bl
 TARGET                  'targetNode' | 'targetObjectsOf' | 'targetSubjectsOf' 
 PARAM                   'deactivated' | 'severity' | 'message' | 'class' | 'datatype' | 'nodeKind' | 'minExclusive' | 'minInclusive' | 'maxExclusive' | 'maxInclusive' | 'minLength' | 'maxLength' | 'pattern' | 'flags' | 'languageIn' | 'uniqueLang' | 'equals' | 'disjoint' | 'lessThan' | 'lessThanOrEquals' | 'qualifiedValueShape' | 'qualifiedMinCount' | 'qualifiedMaxCount' | 'qualifiedValueShapesDisjoint' | 'closed' | 'ignoredProperties' | 'hasValue' | 'in'
 
+MEDIATYPE               [a-z]+ '/' ([a-z]+)?[a-z]+
+// ALL                     [\s\S]+
+
 %options flex case-insensitive
 
 %%
@@ -269,6 +272,7 @@ PARAM                   'deactivated' | 'severity' | 'message' | 'class' | 'data
 {STRING_LITERAL2}       return 'STRING_LITERAL2'
 {STRING_LITERAL_LONG1}  return 'STRING_LITERAL_LONG1'
 {STRING_LITERAL_LONG2}  return 'STRING_LITERAL_LONG2'
+// {MEDIATYPE}             return 'MEDIATYPE'
 
 "->"                    return '->'
 ".."                    return '..'
@@ -293,6 +297,8 @@ PARAM                   'deactivated' | 'severity' | 'message' | 'class' | 'data
 "="                     return '='
 "@"                     return '@'
 "^"                     return '^'
+"//"                     return '//'
+// {ALL}                   return 'ALL'
 
 <<EOF>>                 return 'EOF'
 
@@ -305,7 +311,10 @@ PARAM                   'deactivated' | 'severity' | 'message' | 'class' | 'data
 %%
 
 // TODO: Work out why this occurs multiple times when the empty file is called with other things (the base from the previous file is somehow getting leaked thorugh)
-shaclDoc            : directive* (nodeShape|shapeClass)* EOF -> emit(Parser.base, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(OWL + 'Ontology'))
+shaclDoc            : iShaclDoc (nodeShape|shapeClass)* '//'? EOF -> null
+                    ;
+
+iShaclDoc           : directive* -> emit(Parser.base, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(OWL + 'Ontology'))
                     ;
 
 directive           : baseDecl | importsDecl | prefixDecl ;
@@ -538,4 +547,8 @@ literal
 string
     : (STRING_LITERAL1 | STRING_LITERAL2) -> unescapeString($1, 1)
     | (STRING_LITERAL_LONG1 | STRING_LITERAL_LONG2) -> unescapeString($1, 3)
+    ;
+
+rdfSection
+    : '//' MEDIATYPE '//'
     ;
