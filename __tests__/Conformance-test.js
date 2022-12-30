@@ -19,3 +19,24 @@ describe('Testing each conformance file', () => {
     )
   });
 });
+
+
+describe('Testing each extended conformance file', () => {
+  it.each(
+    fs.readdirSync(path.join(__dirname, 'extended')).filter(str => str.endsWith('.shaclc'))
+  )('testing %s correctly parses when extended is enabled', (file) => {
+    
+    const shaclc = fs.readFileSync(path.join(__dirname, 'extended', file)).toString();
+    const ttl = fs.readFileSync(path.join(__dirname, 'extended', file.replace('.shaclc', '.ttl'))).toString();
+
+    expect(
+      (new Parser()).parse(shaclc, { extendedSyntax: true })
+    ).toBeRdfIsomorphic(
+      (new N3.Parser()).parse(ttl)
+    )
+
+    expect(
+      () => (new Parser()).parse(shaclc)
+    ).toThrowError();
+  });
+});

@@ -22,7 +22,7 @@
       SH = 'http://www.w3.org/ns/shacl#',
       OWL = 'http://www.w3.org/2002/07/owl#',
       RDFS = 'http://www.w3.org/2000/01/rdf-schema#';
-  var base = Parser.base = '', basePath = '', baseRoot = '', currentNodeShape, currentPropertyNode, nodeShapeStack = [];
+  var base = Parser.base = '', basePath = '', baseRoot = '', currentNodeShape, currentPropertyNode, nodeShapeStack = [], tempCurrentNodeShape;
 
     Parser.prefixes = {
       rdf: RDF,
@@ -54,9 +54,15 @@
       [RDF + 'langString']: true
     }
 
-    function addList(elems) {
-      const list = head = blank();
+    function addList(elems, ttlList = false) {   
       let i = 0, l = elems.length;
+
+      // TODO: Double check this behavior and see why it differes from the other l == 0 case
+      if (ttlList && l === 0) {
+        return Parser.factory.namedNode(RDF_NIL)
+      }
+
+      const list = head = blank();
 
       if (l === 0) {
         // TODO: see if this should be here 
@@ -193,6 +199,13 @@
     emit(b, Parser.factory.namedNode(SH + p), o);
     return [name, b];
   }
+
+  function ensureExtended(input) {
+    if (!Parser.extended) {
+      throw new Error('Encountered extended SHACLC syntax; but extended parsing is disabled')
+    }
+    return input
+  }
 %}
 
 %lex
@@ -293,6 +306,9 @@ PARAM                   'deactivated' | 'severity' | 'message' | 'class' | 'data
 "="                     return '='
 "@"                     return '@'
 "^"                     return '^'
+";"                     return ';'
+","                     return ','
+"%"                     return '%'
 
 <<EOF>>                 return 'EOF'
 
@@ -305,7 +321,7 @@ PARAM                   'deactivated' | 'severity' | 'message' | 'class' | 'data
 %%
 
 // TODO: Work out why this occurs multiple times when the empty file is called with other things (the base from the previous file is somehow getting leaked thorugh)
-shaclDoc            : directive* (nodeShape|shapeClass)* EOF -> emit(Parser.base, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(OWL + 'Ontology'))
+shaclDoc            : directive* (nodeShape|shapeClass)* ttlSection EOF -> emit(Parser.base, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(OWL + 'Ontology'))
                     ;
 
 directive           : baseDecl | importsDecl | prefixDecl ;
@@ -323,10 +339,77 @@ prefixDecl          : KW_PREFIX PNAME_NS IRIREF -> Parser.prefixes[$2.substr(0, 
 nodeShapeIri        : iri -> emit(currentNodeShape = $1, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(SH + 'NodeShape'))
                     ;
 
-nodeShape           : KW_SHAPE nodeShapeIri targetClass? nodeShapeBody
+nodeShape           : KW_SHAPE nodeShapeIri targetClass? turtleAnnotation? nodeShapeBody
                     ;
 
-shapeClass          : KW_SHAPE_CLASS nodeShapeIri nodeShapeBody -> emit(currentNodeShape, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(RDFS + 'Class'))
+shapeClass          : KW_SHAPE_CLASS nodeShapeIri turtleAnnotation? nodeShapeBody -> emit(currentNodeShape, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(RDFS + 'Class'))
+                    ;
+
+turtleAnnotation    : ';' turtleAnnotation2 -> ensureExtended()
+                    ;
+
+turtleAnnotation2   : predicate turtleAnnotation?
+                    ;
+
+predicate           : iri objectList -> $2.forEach(e => emit(currentNodeShape, $1, e))
+                    ;
+
+objectList          : object objectTail* -> [$1, ...$2]
+                    ;
+
+object              : iriOrLiteral
+                    | blankNodeSection
+                    | list
+                    ;
+
+list                : '(' object* ')' -> addList($2, true)
+                    ;
+
+objectTail          : ',' object -> $2
+                    ;
+
+LB                  : '['
+                    {
+                      tempCurrentNodeShape = currentNodeShape;
+                      $$ = currentNodeShape = blank();
+                    }
+                    ;
+
+RB                  : ']'
+                    {
+                      currentNodeShape = tempCurrentNodeShape;
+                    }
+                    ;
+
+blankNodeSection    : LB turtleAnnotation2 RB -> $1
+                    ;
+
+LP                  : "%"
+                    {
+                      tempCurrentNodeShape = currentNodeShape;
+                      currentNodeShape = currentPropertyNode;
+                    }
+                    ;
+
+RP                  : "%"
+                    {
+                      currentNodeShape = tempCurrentNodeShape
+                    }
+                    ;
+
+pcSection           : LP turtleAnnotation2 RP
+                    ;
+
+iriHead             : iri
+                    {
+                      currentNodeShape = $1
+                    }
+                    ;
+
+ttlStatement        : iriHead turtleAnnotation2 "." 
+                    ;
+
+ttlSection          : ttlStatement*
                     ;
 
 startNodeShape      : '{'
@@ -369,7 +452,7 @@ nodeShapeBody       : startNodeShape constraint* endNodeShape -> $1
 targetClass         : '->' iri+ -> $2.forEach(node => { emit(currentNodeShape, Parser.factory.namedNode(SH + 'targetClass'), node) })
                     ;
 
-constraint          : ( nodeOrEmit+ | propertyShape ) '.'
+constraint          : ( nodeOrEmit+ | propertyShape ) pcSection? '.'
                     ;
 
 orNotComponent      : '|' nodeNot -> $2
