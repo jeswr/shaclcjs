@@ -91,27 +91,23 @@
       return iri;
     if (!Parser.base)
       throw new Error('Cannot resolve relative IRI ' + iri + ' because no base IRI was set.');
-    if (!base) {
-      base = Parser.base;
-      basePath = base.replace(/[^\/:]*$/, '');
-      baseRoot = base.match(/^(?:[a-z]+:\/*)?[^\/]*/)[0];
-    }
+
     switch (iri[0]) {
     // An empty relative IRI indicates the base IRI
     case undefined:
-      return base;
+      return base.value;
     // Resolve relative fragment IRIs against the base IRI
     case '#':
-      return base + iri;
+      return base.value + iri;
     // Resolve relative query string IRIs by replacing the query string
     case '?':
-      return base.replace(/(?:\?.*)?$/, iri);
+      return base.value.replace(/(?:\?.*)?$/, iri);
     // Resolve root relative IRIs at the root of the base IRI
     case '/':
-      return baseRoot + iri;
+      return base.value.replace(/[^\/:]*$/, '') + iri;
     // Resolve all other IRIs at the base IRI's path
     default:
-      return basePath + iri;
+      return base.value.match(/^(?:[a-z]+:\/*)?[^\/]*/)[0] + iri;
     }
   }
 
