@@ -19,7 +19,11 @@ shape ex:TestShape -> ex:TestClass1 ex:TestClass2 {
 ## Extended SHACL Compact Syntax
 
 The [SHACL Compact Syntax specification](https://w3c.github.io/shacl/shacl-compact-syntax/) is not expressive enough to
-make any RDF 1.0 statement. This package includes an opt-in extended syntax that allows users to make any RDF 1.0 statement.
+make any RDF 1.0 statement. This package includes an opt-in extended syntax that allows users to make any RDF 1.0 statement. Parsing of this extended syntax can be enabled via an option in the `parse` function
+
+```ts
+const quads = parse(/*shaclc extended string*/, { extendedSyntax: true })
+```
 
 ### Making additional statements about the `NodeShape`
 
