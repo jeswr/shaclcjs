@@ -4,4 +4,4 @@ export interface ParseOptions {
   extendedSyntax?: boolean;
 }
 
-export declare function parse(str: string, options?: ParseOptions): Quad[];
+export declare function parse(str: string, options?: ParseOptions): Quad[] & { prefixes: Record<string, string> };

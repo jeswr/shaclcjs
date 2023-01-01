@@ -29,14 +29,17 @@ describe('Testing each extended conformance file', () => {
     const shaclc = fs.readFileSync(path.join(__dirname, 'extended', file)).toString();
     const ttl = fs.readFileSync(path.join(__dirname, 'extended', file.replace('.shaclc', '.ttl'))).toString();
 
-    expect(
-      (new Parser()).parse(shaclc, { extendedSyntax: true })
-    ).toBeRdfIsomorphic(
-      (new N3.Parser()).parse(ttl)
-    )
+    const res = (new Parser()).parse(shaclc, { extendedSyntax: true });
 
-    expect(
-      () => (new Parser()).parse(shaclc)
-    ).toThrowError();
+    expect(res).toBeRdfIsomorphic((new N3.Parser()).parse(ttl))
+    expect(res.prefixes).toEqual({
+      rdf: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+      rdfs: 'http://www.w3.org/2000/01/rdf-schema#',
+      sh: 'http://www.w3.org/ns/shacl#',
+      xsd: 'http://www.w3.org/2001/XMLSchema#',
+      ex: 'http://example.org/test#'
+    })
+
+    expect(() => (new Parser()).parse(shaclc)).toThrowError();
   });
 });
