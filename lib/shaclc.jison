@@ -332,7 +332,11 @@ importsDecl         : KW_IMPORTS IRIREF -> emit(Parser.base, Parser.factory.name
 prefixDecl          : KW_PREFIX PNAME_NS IRIREF -> Parser.prefixes[$2.substr(0, $2.length - 1)] = resolveIRI($3)
                     ;
 
-nodeShapeIri        : iri -> emit(currentNodeShape = $1, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(SH + 'NodeShape'))
+nodeShapeIri        : iri
+                    {
+                      nodeShapeStack = false
+                      emit(currentNodeShape = $1, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(SH + 'NodeShape'))
+                    }
                     ;
 
 nodeShape           : KW_SHAPE nodeShapeIri targetClass? turtleAnnotation? nodeShapeBody
@@ -410,24 +414,19 @@ ttlSection          : ttlStatement*
 
 startNodeShape      : '{'
                     {
-                      if (nodeShapeStack.length === 0) {
-                        nodeShapeStack.push(currentNodeShape);
+                      if (!nodeShapeStack) {
+                        nodeShapeStack = [];
                       } else {
+                        nodeShapeStack.push(currentNodeShape);
                         emit(
                           // In the grammar a path signals the start of a new property declaration
                           currentPropertyNode,
                           Parser.factory.namedNode(SH + 'node'),
                           currentNodeShape = blank(),
                         )
-                        // currentNodeShape = blank()
-                        nodeShapeStack.push(currentNodeShape);
                       }
           
                       $$ = currentNodeShape;
-                      
-                      
-                      // TODO: Push a new nodeShape blankNode here when we are on a nested shape
-                      // and mint a sh:node triple
                     }
                     ;
 
@@ -436,9 +435,6 @@ endNodeShape        : '}'
                       if (nodeShapeStack.length > 0) {
                         currentNodeShape = nodeShapeStack.pop();
                       }
-                      
-                      
-                      // TODO: Pop the new nodeShape blankNode here
                     }
                     ;
 
