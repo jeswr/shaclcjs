@@ -305,6 +305,7 @@ PARAM                   'deactivated' | 'severity' | 'message' | 'class' | 'data
 ";"                     return ';'
 ","                     return ','
 "%"                     return '%'
+"a"                     return 'a'
 
 <<EOF>>                 return 'EOF'
 
@@ -594,6 +595,7 @@ iriOrLiteral        : iri | literal ;
 iri : IRIREF -> Parser.factory.namedNode(resolveIRI($1))
     // TODO: Double check expand prefix works on both
     | (PNAME_LN | PNAME_NS) -> Parser.factory.namedNode(expandPrefix($1))
+    | 'a' -> ensureExtended(Parser.factory.namedNode(RDF_TYPE))
     ;
 
 literal
