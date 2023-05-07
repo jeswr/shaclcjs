@@ -23,8 +23,10 @@
       OWL = 'http://www.w3.org/2002/07/owl#',
       RDFS = 'http://www.w3.org/2000/01/rdf-schema#';
   var base = Parser.base = '', basePath = '', baseRoot = '', currentNodeShape, currentPropertyNode, nodeShapeStack = [], tempCurrentNodeShape;
-
-    Parser.prefixes = {
+  const n3Parser = new (require('n3').Parser);
+  n3Parser._setBase(base);
+  
+    n3Parser._prefixes = Parser.prefixes = {
       rdf: RDF,
       rdfs: RDFS,
       sh: SH,
@@ -80,35 +82,10 @@
       return list;
     }
 
-  // TODO: Port over any updates to this from SPARLQL.js
   // Resolves an IRI against a base path
   function resolveIRI(iri) {
-    // Strip off possible angular brackets
-    if (iri[0] === '<')
-      iri = iri.substring(1, iri.length - 1);
-    // Return absolute IRIs unmodified
-    if (/^[a-z]+:/.test(iri))
-      return iri;
-    if (!Parser.base)
-      throw new Error('Cannot resolve relative IRI ' + iri + ' because no base IRI was set.');
-
-    switch (iri[0]) {
-    // An empty relative IRI indicates the base IRI
-    case undefined:
-      return base.value;
-    // Resolve relative fragment IRIs against the base IRI
-    case '#':
-      return base.value + iri;
-    // Resolve relative query string IRIs by replacing the query string
-    case '?':
-      return base.value.replace(/(?:\?.*)?$/, iri);
-    // Resolve root relative IRIs at the root of the base IRI
-    case '/':
-      return base.value.replace(/[^\/:]*$/, '') + iri;
-    // Resolve all other IRIs at the base IRI's path
-    default:
-      return base.value.match(/^(?:[a-z]+:\/*)?[^\/]*/)[0] + iri;
-    }
+    // Strip off possible angular brackets and resolve the IRI
+    return n3Parser._resolveIRI(iri[0] === '<' ? iri.substring(1, iri.length - 1) : iri)
   }
 
   function expandPrefix(iri) {
@@ -121,10 +98,6 @@
     return resolveIRI(expansion + iri.substr(namePos + 1));
   }
   
-  // Converts the string to a number
-  function toInt(string) {
-    return parseInt(string, 10);
-  }
   // Creates a literal with the given value and type
   function createTypedLiteral(value, type) {
     if (type && type.termType !== 'NamedNode'){
@@ -153,30 +126,7 @@
       fromCharCode = String.fromCharCode;
   // Translates escape codes in the string into their textual equivalent
   function unescapeString(string, trimLength) {
-    string = string.substring(trimLength, string.length - trimLength);
-    try {
-      string = string.replace(escapeSequence, function (sequence, unicode4, unicode8, escapedChar) {
-        var charCode;
-        if (unicode4) {
-          charCode = parseInt(unicode4, 16);
-          if (isNaN(charCode)) throw new Error(); // can never happen (regex), but helps performance
-          return fromCharCode(charCode);
-        }
-        else if (unicode8) {
-          charCode = parseInt(unicode8, 16);
-          if (isNaN(charCode)) throw new Error(); // can never happen (regex), but helps performance
-          if (charCode < 0xFFFF) return fromCharCode(charCode);
-          return fromCharCode(0xD800 + ((charCode -= 0x10000) >> 10), 0xDC00 + (charCode & 0x3FF));
-        }
-        else {
-          var replacement = escapeReplacements[escapedChar];
-          if (!replacement) throw new Error();
-          return replacement;
-        }
-      });
-    }
-    catch (error) { return ''; }
-    return string;
+    return n3Parser._lexer._unescape(string.substring(trimLength, string.length - trimLength));
   }
 
   function emit(s, p, o) {
@@ -197,9 +147,8 @@
   }
 
   function ensureExtended(input) {
-    if (!Parser.extended) {
-      throw new Error('Encountered extended SHACLC syntax; but extended parsing is disabled')
-    }
+    if (!Parser.extended)
+      throw new Error('Encountered extended SHACLC syntax; but extended parsing is disabled');
     return input
   }
 %}
@@ -323,7 +272,11 @@ shaclDoc            : directive* (nodeShape|shapeClass)* ttlSection EOF -> emit(
 
 directive           : baseDecl | importsDecl | prefixDecl ;
                     // TODO: Remove the duplicate declaration of base
-baseDecl            : KW_BASE  IRIREF -> base = Parser.base = Parser.factory.namedNode($2.slice(1, -1))
+baseDecl            : KW_BASE IRIREF
+                    { 
+                      base = Parser.base = Parser.factory.namedNode($2.slice(1, -1))
+                      n3Parser._setBase(base.value);
+                    }
                     ;
 
                     // TODO: See if this should be resolveIRI($2)
