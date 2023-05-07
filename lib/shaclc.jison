@@ -22,9 +22,10 @@
       SH = 'http://www.w3.org/ns/shacl#',
       OWL = 'http://www.w3.org/2002/07/owl#',
       RDFS = 'http://www.w3.org/2000/01/rdf-schema#';
-  var base = Parser.base = '', basePath = '', baseRoot = '', currentNodeShape, currentPropertyNode, nodeShapeStack = [], tempCurrentNodeShape;
-  const n3Parser = new (require('n3').Parser);
-  n3Parser._setBase(base);
+    
+    let base = Parser.base = '', basePath = '', baseRoot = '', currentNodeShape, currentPropertyNode, nodeShapeStack = [], tempCurrentNodeShape;
+    const n3Parser = new (require('n3').Parser);
+    n3Parser._setBase(base);
   
     n3Parser._prefixes = Parser.prefixes = {
       rdf: RDF,
@@ -267,7 +268,7 @@ PARAM                   'deactivated' | 'severity' | 'message' | 'class' | 'data
 %%
 
 // TODO: Work out why this occurs multiple times when the empty file is called with other things (the base from the previous file is somehow getting leaked thorugh)
-shaclDoc            : directive* (nodeShape|shapeClass)* ttlSection EOF -> emit(Parser.base, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(OWL + 'Ontology'))
+shaclDoc            : directive* (nodeShape|shapeClass)* ttlSection EOF -> emit(Parser.factory.namedNode(resolveIRI('')), Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(OWL + 'Ontology'))
                     ;
 
 directive           : baseDecl | importsDecl | prefixDecl ;

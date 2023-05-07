@@ -20,7 +20,6 @@ describe('Testing each conformance file', () => {
   });
 });
 
-
 describe('Testing each extended conformance file', () => {
   it.each(
     fs.readdirSync(path.join(__dirname, 'extended')).filter(str => str.endsWith('.shaclc'))
