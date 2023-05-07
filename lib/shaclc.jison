@@ -23,9 +23,9 @@
       OWL = 'http://www.w3.org/2002/07/owl#',
       RDFS = 'http://www.w3.org/2000/01/rdf-schema#';
     
-    let base = Parser.base = '', basePath = '', baseRoot = '', currentNodeShape, currentPropertyNode, nodeShapeStack = [], tempCurrentNodeShape;
+    let base = Parser.base = 'urn:x-base:default', currentNodeShape, currentPropertyNode, nodeShapeStack = [], tempCurrentNodeShape;
     const n3Parser = new (require('n3').Parser);
-    n3Parser._setBase(base);
+    n3Parser._setBase('urn:x-base:default');
   
     n3Parser._prefixes = Parser.prefixes = {
       rdf: RDF,
@@ -118,10 +118,10 @@
     }
     return Parser.factory.blankNode('g_' + blankId++);
   };
-  var blankId = 0;
+  let blankId = 0;
   Parser._resetBlanks = function () { blankId = 0; }
   // Regular expression and replacement strings to escape strings
-  var escapeSequence = /\\u([a-fA-F0-9]{4})|\\U([a-fA-F0-9]{8})|\\(.)/g,
+  let escapeSequence = /\\u([a-fA-F0-9]{4})|\\U([a-fA-F0-9]{8})|\\(.)/g,
       escapeReplacements = { '\\': '\\', "'": "'", '"': '"',
                              't': '\t', 'b': '\b', 'n': '\n', 'r': '\r', 'f': '\f' },
       fromCharCode = String.fromCharCode;
@@ -276,7 +276,7 @@ directive           : baseDecl | importsDecl | prefixDecl ;
 baseDecl            : KW_BASE IRIREF
                     { 
                       base = Parser.base = Parser.factory.namedNode($2.slice(1, -1))
-                      n3Parser._setBase(base.value);
+                      n3Parser._setBase(base.value || 'urn:x-base:default');
                     }
                     ;
 
