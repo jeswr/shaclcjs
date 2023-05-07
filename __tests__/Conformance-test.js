@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const Parser = require('../lib').Parser;
+const parse = require('../lib').parse;
 const N3 = require('n3');
 require('jest-rdf');
 
@@ -8,7 +9,7 @@ describe('Testing each conformance file', () => {
   it.each(
     fs.readdirSync(path.join(__dirname, 'valid')).filter(str => str.endsWith('.shaclc'))
   )('testing %s correctly parses', (file) => {
-    
+
     const shaclc = fs.readFileSync(path.join(__dirname, 'valid', file)).toString();
     const ttl = fs.readFileSync(path.join(__dirname, 'valid', file.replace('.shaclc', '.ttl'))).toString();
 
@@ -20,12 +21,11 @@ describe('Testing each conformance file', () => {
   });
 });
 
-
 describe('Testing each extended conformance file', () => {
   it.each(
     fs.readdirSync(path.join(__dirname, 'extended')).filter(str => str.endsWith('.shaclc'))
   )('testing %s correctly parses when extended is enabled', (file) => {
-    
+
     const shaclc = fs.readFileSync(path.join(__dirname, 'extended', file)).toString();
     const ttl = fs.readFileSync(path.join(__dirname, 'extended', file.replace('.shaclc', '.ttl'))).toString();
 
@@ -41,5 +41,57 @@ describe('Testing each extended conformance file', () => {
     })
 
     expect(() => (new Parser()).parse(shaclc)).toThrowError();
+  });
+});
+
+describe('Testing relative IRIs', () => {
+  it('should use the provided baseIRI to resolve relative IRIs', () => {
+    expect(parse(`
+    PREFIX ex: <http://example.org/>
+
+    shape <#MyShape> -> </MyClass> {
+    }
+    `, { baseIRI: 'http://www.jeswr.org/' })).toBeRdfIsomorphic([
+      N3.DataFactory.quad(
+        N3.DataFactory.namedNode('http://www.jeswr.org/#MyShape'),
+        N3.DataFactory.namedNode('http://www.w3.org/ns/shacl#targetClass'),
+        N3.DataFactory.namedNode('http://www.jeswr.org/MyClass'),
+      ),
+      N3.DataFactory.quad(
+        N3.DataFactory.namedNode('http://www.jeswr.org/#MyShape'),
+        N3.DataFactory.namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'),
+        N3.DataFactory.namedNode('http://www.w3.org/ns/shacl#NodeShape'),
+      ),
+      N3.DataFactory.quad(
+        N3.DataFactory.namedNode('http://www.jeswr.org/'),
+        N3.DataFactory.namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'),
+        N3.DataFactory.namedNode('http://www.w3.org/2002/07/owl#Ontology'),
+      )
+    ])
+  });
+
+  it('should use the provided baseIRI to resolve relative IRIs', () => {
+    expect(parse(`
+    PREFIX ex: <http://example.org/>
+
+    shape <#MyShape> -> </MyClass> {
+    }
+    `, { baseIRI: 'http://www.jeswr.org/humanShape' })).toBeRdfIsomorphic([
+      N3.DataFactory.quad(
+        N3.DataFactory.namedNode('http://www.jeswr.org/humanShape#MyShape'),
+        N3.DataFactory.namedNode('http://www.w3.org/ns/shacl#targetClass'),
+        N3.DataFactory.namedNode('http://www.jeswr.org/MyClass'),
+      ),
+      N3.DataFactory.quad(
+        N3.DataFactory.namedNode('http://www.jeswr.org/humanShape#MyShape'),
+        N3.DataFactory.namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'),
+        N3.DataFactory.namedNode('http://www.w3.org/ns/shacl#NodeShape'),
+      ),
+      N3.DataFactory.quad(
+        N3.DataFactory.namedNode('http://www.jeswr.org/humanShape'),
+        N3.DataFactory.namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'),
+        N3.DataFactory.namedNode('http://www.w3.org/2002/07/owl#Ontology'),
+      )
+    ])
   });
 });
