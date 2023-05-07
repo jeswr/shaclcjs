@@ -1,6 +1,3 @@
-// TODO: Work out why the alternativePath
-
-
 %{
 /*
     Grammar specification for a SHACL compact
@@ -22,14 +19,6 @@
       SH = 'http://www.w3.org/ns/shacl#',
       OWL = 'http://www.w3.org/2002/07/owl#',
       RDFS = 'http://www.w3.org/2000/01/rdf-schema#';
-  var base = Parser.base = '', basePath = '', baseRoot = '', currentNodeShape, currentPropertyNode, nodeShapeStack = [], tempCurrentNodeShape;
-
-    Parser.prefixes = {
-      rdf: RDF,
-      rdfs: RDFS,
-      sh: SH,
-      xsd: XSD
-    }
 
     // TODO: Make sure all SPARQL supported datatypes are here
     const datatypes = {
@@ -83,32 +72,8 @@
   // TODO: Port over any updates to this from SPARLQL.js
   // Resolves an IRI against a base path
   function resolveIRI(iri) {
-    // Strip off possible angular brackets
-    if (iri[0] === '<')
-      iri = iri.substring(1, iri.length - 1);
-    // Return absolute IRIs unmodified
-    if (/^[a-z]+:/.test(iri))
-      return iri;
-    if (!Parser.base)
-      throw new Error('Cannot resolve relative IRI ' + iri + ' because no base IRI was set.');
-
-    switch (iri[0]) {
-    // An empty relative IRI indicates the base IRI
-    case undefined:
-      return base.value;
-    // Resolve relative fragment IRIs against the base IRI
-    case '#':
-      return base.value + iri;
-    // Resolve relative query string IRIs by replacing the query string
-    case '?':
-      return base.value.replace(/(?:\?.*)?$/, iri);
-    // Resolve root relative IRIs at the root of the base IRI
-    case '/':
-      return base.value.replace(/[^\/:]*$/, '') + iri;
-    // Resolve all other IRIs at the base IRI's path
-    default:
-      return base.value.match(/^(?:[a-z]+:\/*)?[^\/]*/)[0] + iri;
-    }
+     // Strip off possible angular brackets and resolve the IRI
+    return Parser.n3Parser._resolveIRI(iri[0] === '<' ? iri.substring(1, iri.length - 1) : iri)
   }
 
   function expandPrefix(iri) {
@@ -153,30 +118,7 @@
       fromCharCode = String.fromCharCode;
   // Translates escape codes in the string into their textual equivalent
   function unescapeString(string, trimLength) {
-    string = string.substring(trimLength, string.length - trimLength);
-    try {
-      string = string.replace(escapeSequence, function (sequence, unicode4, unicode8, escapedChar) {
-        var charCode;
-        if (unicode4) {
-          charCode = parseInt(unicode4, 16);
-          if (isNaN(charCode)) throw new Error(); // can never happen (regex), but helps performance
-          return fromCharCode(charCode);
-        }
-        else if (unicode8) {
-          charCode = parseInt(unicode8, 16);
-          if (isNaN(charCode)) throw new Error(); // can never happen (regex), but helps performance
-          if (charCode < 0xFFFF) return fromCharCode(charCode);
-          return fromCharCode(0xD800 + ((charCode -= 0x10000) >> 10), 0xDC00 + (charCode & 0x3FF));
-        }
-        else {
-          var replacement = escapeReplacements[escapedChar];
-          if (!replacement) throw new Error();
-          return replacement;
-        }
-      });
-    }
-    catch (error) { return ''; }
-    return string;
+    return Parser.n3Parser._lexer._unescape(string.substring(trimLength, string.length - trimLength));
   }
 
   function emit(s, p, o) {
@@ -187,7 +129,7 @@
   }
 
   function emitProperty(p, o) {
-    emit(currentPropertyNode, Parser.factory.namedNode(SH + p), o)
+    emit(Parser.currentPropertyNode, Parser.factory.namedNode(SH + p), o)
   }
 
   function chainProperty(name, p, o) {
@@ -318,12 +260,16 @@ PARAM                   'deactivated' | 'severity' | 'message' | 'class' | 'data
 %%
 
 // TODO: Work out why this occurs multiple times when the empty file is called with other things (the base from the previous file is somehow getting leaked thorugh)
-shaclDoc            : directive* (nodeShape|shapeClass)* ttlSection EOF -> emit(Parser.base, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(OWL + 'Ontology'))
+shaclDoc            : directive* (nodeShape|shapeClass)* ttlSection EOF -> emit(Parser.factory.namedNode(resolveIRI('')), Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(OWL + 'Ontology'))
                     ;
 
 directive           : baseDecl | importsDecl | prefixDecl ;
                     // TODO: Remove the duplicate declaration of base
-baseDecl            : KW_BASE  IRIREF -> base = Parser.base = Parser.factory.namedNode($2.slice(1, -1))
+baseDecl            : KW_BASE  IRIREF
+                    {
+                      Parser.base = Parser.factory.namedNode($2.slice(1, -1));
+                      Parser.n3Parser._setBase(Parser.base.value);
+                    }
                     ;
 
                     // TODO: See if this should be resolveIRI($2)
@@ -335,15 +281,15 @@ prefixDecl          : KW_PREFIX PNAME_NS IRIREF -> Parser.prefixes[$2.substr(0, 
 
 nodeShapeIri        : iri
                     {
-                      nodeShapeStack = false
-                      emit(currentNodeShape = $1, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(SH + 'NodeShape'))
+                      Parser.nodeShapeStack = false
+                      emit(Parser.currentNodeShape = $1, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(SH + 'NodeShape'))
                     }
                     ;
 
 nodeShape           : KW_SHAPE nodeShapeIri targetClass? turtleAnnotation? nodeShapeBody
                     ;
 
-shapeClass          : KW_SHAPE_CLASS nodeShapeIri turtleAnnotation? nodeShapeBody -> emit(currentNodeShape, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(RDFS + 'Class'))
+shapeClass          : KW_SHAPE_CLASS nodeShapeIri turtleAnnotation? nodeShapeBody -> emit(Parser.currentNodeShape, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(RDFS + 'Class'))
                     ;
 
 turtleAnnotation    : ';' turtleAnnotation2 -> ensureExtended()
@@ -352,7 +298,7 @@ turtleAnnotation    : ';' turtleAnnotation2 -> ensureExtended()
 turtleAnnotation2   : predicate turtleAnnotation?
                     ;
 
-predicate           : iri objectList -> $2.forEach(e => emit(currentNodeShape, $1, e))
+predicate           : iri objectList -> $2.forEach(e => emit(Parser.currentNodeShape, $1, e))
                     ;
 
 objectList          : object objectTail* -> [$1, ...$2]
@@ -371,14 +317,14 @@ objectTail          : ',' object -> $2
 
 LB                  : '['
                     {
-                      tempCurrentNodeShape = currentNodeShape;
-                      $$ = currentNodeShape = blank();
+                      Parser.tempCurrentNodeShape = Parser.currentNodeShape;
+                      $$ = Parser.currentNodeShape = blank();
                     }
                     ;
 
 RB                  : ']'
                     {
-                      currentNodeShape = tempCurrentNodeShape;
+                      Parser.currentNodeShape = Parser.tempCurrentNodeShape;
                     }
                     ;
 
@@ -387,14 +333,14 @@ blankNodeSection    : LB turtleAnnotation2 RB -> $1
 
 LP                  : "%"
                     {
-                      tempCurrentNodeShape = currentNodeShape;
-                      currentNodeShape = currentPropertyNode;
+                      Parser.tempCurrentNodeShape = Parser.currentNodeShape;
+                      Parser.currentNodeShape = Parser.currentPropertyNode;
                     }
                     ;
 
 RP                  : "%"
                     {
-                      currentNodeShape = tempCurrentNodeShape
+                      Parser.currentNodeShape = Parser.tempCurrentNodeShape
                     }
                     ;
 
@@ -403,7 +349,7 @@ pcSection           : LP turtleAnnotation2 RP
 
 iriHead             : iri
                     {
-                      currentNodeShape = $1
+                      Parser.currentNodeShape = $1
                     }
                     ;
 
@@ -415,26 +361,26 @@ ttlSection          : ttlStatement*
 
 startNodeShape      : '{'
                     {
-                      if (!nodeShapeStack) {
-                        nodeShapeStack = [];
+                      if (!Parser.nodeShapeStack) {
+                        Parser.nodeShapeStack = [];
                       } else {
-                        nodeShapeStack.push(currentNodeShape);
+                        Parser.nodeShapeStack.push(Parser.currentNodeShape);
                         emit(
                           // In the grammar a path signals the start of a new property declaration
-                          currentPropertyNode,
+                          Parser.currentPropertyNode,
                           Parser.factory.namedNode(SH + 'node'),
-                          currentNodeShape = blank(),
+                          Parser.currentNodeShape = blank(),
                         )
                       }
           
-                      $$ = currentNodeShape;
+                      $$ = Parser.currentNodeShape;
                     }
                     ;
 
 endNodeShape        : '}'
                     {
-                      if (nodeShapeStack.length > 0) {
-                        currentNodeShape = nodeShapeStack.pop();
+                      if (Parser.nodeShapeStack.length > 0) {
+                        Parser.currentNodeShape = Parser.nodeShapeStack.pop();
                       }
                     }
                     ;
@@ -442,7 +388,7 @@ endNodeShape        : '}'
 nodeShapeBody       : startNodeShape constraint* endNodeShape -> $1
                     ;
 
-targetClass         : '->' iri+ -> $2.forEach(node => { emit(currentNodeShape, Parser.factory.namedNode(SH + 'targetClass'), node) })
+targetClass         : '->' iri+ -> $2.forEach(node => { emit(Parser.currentNodeShape, Parser.factory.namedNode(SH + 'targetClass'), node) })
                     ;
 
 constraint          : ( nodeOrEmit+ | propertyShape ) pcSection? '.'
@@ -451,7 +397,7 @@ constraint          : ( nodeOrEmit+ | propertyShape ) pcSection? '.'
 orNotComponent      : '|' nodeNot -> $2
                     ;
 
-nodeOrEmit          : nodeOr -> emit(currentNodeShape, Parser.factory.namedNode(SH + $1[0]), $1[1])
+nodeOrEmit          : nodeOr -> emit(Parser.currentNodeShape, Parser.factory.namedNode(SH + $1[0]), $1[1])
                     ;
 
 nodeOr              : nodeNot
@@ -529,9 +475,9 @@ path                : pathAlternative
                     {
                       emit(
                         // In the grammar a path signals the start of a new property declaration
-                        currentNodeShape,
+                        Parser.currentNodeShape,
                         Parser.factory.namedNode(SH + 'property'),
-                        currentPropertyNode = blank(),
+                        Parser.currentPropertyNode = blank(),
                       )
                       
                       emitProperty('path', $1)
