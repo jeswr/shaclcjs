@@ -1,19 +1,17 @@
 # shaclc-parse
-A parser for files written with SHACL compact syntax
+A parser for files written with [SHACL compact syntax](https://w3c.github.io/shacl/shacl-compact-syntax/)
 
 ## Usage
 ```ts
 import { parse } from 'shaclc-parse'
 
 const quads = parse(`
-BASE <http://example.org/basic-shape-with-targets>
-
 PREFIX ex: <http://example.org/test#>
 
 shape ex:TestShape -> ex:TestClass1 ex:TestClass2 {
 	targetNode=ex:TestNode targetSubjectsOf=ex:subjectProperty targetObjectsOf=ex:objectProperty .
 }
-`)
+`, { baseIRI: "http://example.org/basic-shape-with-targets" })
 ```
 
 ## Extended SHACL Compact Syntax
