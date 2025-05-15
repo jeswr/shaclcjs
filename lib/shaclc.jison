@@ -548,7 +548,7 @@ literal
     // RDF LITERALS
     : string -> createTypedLiteral($1)
     // TODO: check this
-    | string LANGTAG  -> createLangLiteral($1, lowercase($2.substr(1)))
+    | string LANGTAG  -> createLangLiteral($1, $2.substr(1).toLowerCase())
     | string '^^' iri -> createTypedLiteral($1, $3)
     // NUMERIC LITERALS
     | INTEGER -> createTypedLiteral($1, XSD_INTEGER)
