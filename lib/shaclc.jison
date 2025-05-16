@@ -144,6 +144,18 @@
     }
     return input
   }
+
+  function addTags(tags, node) {
+    if (tags) {
+      tags.forEach(tag => {
+        if (tag[0] === '@name') {
+          emit(node, Parser.factory.namedNode(SH + 'name'), tag[1])
+        } else if (tag[0] === '@description') {
+          emit(node, Parser.factory.namedNode(SH + 'description'), tag[1])
+        }
+      });
+    }
+  }
 %}
 
 %lex
@@ -276,6 +288,9 @@ baseDecl            : KW_BASE  IRIREF
 importsDecl         : KW_IMPORTS IRIREF -> emit(Parser.base, Parser.factory.namedNode(OWL + 'imports'), Parser.factory.namedNode($2.slice(1, -1)))
                     ;
 
+tagDecl             : LANGTAG literal -> [$1, $2]
+                    ;
+
 prefixDecl          : KW_PREFIX PNAME_NS IRIREF -> Parser.prefixes[$2.substr(0, $2.length - 1)] = resolveIRI($3)
                     ;
 
@@ -286,7 +301,10 @@ nodeShapeIri        : iri
                     }
                     ;
 
-nodeShape           : KW_SHAPE nodeShapeIri targetClass? turtleAnnotation? nodeShapeBody
+nodeShape           : tagDecl* KW_SHAPE nodeShapeIri targetClass? turtleAnnotation? nodeShapeBody
+                    {
+                      addTags($1, Parser.currentNodeShape)
+                    }
                     ;
 
 shapeClass          : KW_SHAPE_CLASS nodeShapeIri turtleAnnotation? nodeShapeBody -> emit(Parser.currentNodeShape, Parser.factory.namedNode(RDF_TYPE), Parser.factory.namedNode(RDFS + 'Class'))
@@ -401,9 +419,6 @@ nodeOrEmit          : nodeOr -> emit(Parser.currentNodeShape, Parser.factory.nam
                     ;
 
 nodeOr              : nodeNot
-                    {
-                      // console.log('ndoe not')
-                    }
                     | nodeNot orNotComponent+
                     {
                       const o = addList([$1, ...$2].map(elem => {
@@ -471,7 +486,7 @@ shapeRef            : (ATPNAME_LN | ATPNAME_NS) -> expandPrefix($1.slice(1))
 
 negation            : '!' ;
 
-path                : pathAlternative
+path                : tagDecl* pathAlternative
                     {
                       emit(
                         // In the grammar a path signals the start of a new property declaration
@@ -479,8 +494,8 @@ path                : pathAlternative
                         Parser.factory.namedNode(SH + 'property'),
                         Parser.currentPropertyNode = blank(),
                       )
-                      
-                      emitProperty('path', $1)
+                      addTags($1, Parser.currentPropertyNode)
+                      emitProperty('path', $2)
                     }
                     ;
 
