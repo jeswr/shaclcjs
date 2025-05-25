@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const Parser = require('../lib').Parser;
+const parse = require('../lib').parse;
 const N3 = require('n3');
 require('jest-rdf');
 
