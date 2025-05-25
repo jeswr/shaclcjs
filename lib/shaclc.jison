@@ -268,7 +268,7 @@ directive           : baseDecl | importsDecl | prefixDecl ;
 baseDecl            : KW_BASE  IRIREF
                     {
                       Parser.base = Parser.factory.namedNode($2.slice(1, -1));
-                      Parser.n3Parser._setBase(Parser.base.value);
+                      Parser.n3Parser._setBase(resolveIRI(Parser.base.value));
                     }
                     ;
 

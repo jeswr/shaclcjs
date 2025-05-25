@@ -16,7 +16,9 @@ describe('Testing each conformance file', () => {
     expect(
       (new Parser()).parse(shaclc)
     ).toBeRdfIsomorphic(
-      (new N3.Parser()).parse(ttl)
+      (new N3.Parser({
+        baseIRI: 'urn:x-base:default'
+      })).parse(ttl)
     )
   });
 });
