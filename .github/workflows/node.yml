@@ -11,7 +11,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [14.x, 16.x, 18.x, 20.x, 22.x]
+        node-version: [14.x, 16.x, 18.x, 20.x, 22.x, 24.x]
 
     steps:
     - uses: actions/checkout@v6
@@ -34,16 +34,16 @@ jobs:
       pages: write
       issues: write
       packages: write
+      id-token: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 22.x
+          node-version: 24.x
       - run: npm ci
       - run: npm run build --if-present
       - run: npm test
       - name: Release
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
         run: npx semantic-release
