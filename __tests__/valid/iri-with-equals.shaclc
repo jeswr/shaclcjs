@@ -1,0 +1,4 @@
+BASE <http://example.org/iri-with-equals>
+
+shape <http://example.org/shape?version=1> -> <http://example.org/Class?a=b> {
+}
