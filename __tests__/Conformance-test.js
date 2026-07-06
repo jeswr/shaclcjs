@@ -47,6 +47,17 @@ describe('Testing each extended conformance file', () => {
   });
 });
 
+describe('Testing unrecognized characters', () => {
+  it('should throw rather than silently discarding characters the lexer cannot match', () => {
+    expect(() => parse(`
+    PREFIX ex: <http://example.org/>
+
+    shape ex:TestShape ~ {
+    }
+    `)).toThrowError();
+  });
+});
+
 describe('Testing relative IRIs', () => {
   it('should use the provided baseIRI to resolve relative IRIs', () => {
     expect(parse(`
