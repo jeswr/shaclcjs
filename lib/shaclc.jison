@@ -344,7 +344,7 @@ RP                  : "%"
                     }
                     ;
 
-pcSection           : LP turtleAnnotation2 RP
+pcSection           : LP turtleAnnotation2 RP -> ensureExtended()
                     ;
 
 iriHead             : iri
@@ -353,7 +353,7 @@ iriHead             : iri
                     }
                     ;
 
-ttlStatement        : iriHead turtleAnnotation2 "." 
+ttlStatement        : iriHead turtleAnnotation2 "." -> ensureExtended()
                     ;
 
 ttlSection          : ttlStatement*
