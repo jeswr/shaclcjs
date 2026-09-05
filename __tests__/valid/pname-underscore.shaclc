@@ -1,0 +1,7 @@
+BASE <http://example.org/pname-underscore>
+
+PREFIX ex_ample: <http://example.org/test#>
+
+shape ex_ample:Test_Shape -> ex_ample:_TestClass {
+	ex_ample:my_property IRI .
+}
