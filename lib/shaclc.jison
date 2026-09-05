@@ -249,6 +249,12 @@ PARAM                   'deactivated' | 'severity' | 'message' | 'class' | 'data
 "%"                     return '%'
 "a"                     return 'a'
 
+// Catch-all for characters no other rule matches. Without this, the flex
+// option makes jison-lex echo unmatched characters to stdout and silently
+// drop them, so invalid input could "successfully" parse to incorrect quads.
+// INVALID is not a token in the grammar, so the parser raises a parse error.
+.                       return 'INVALID'
+
 <<EOF>>                 return 'EOF'
 
 /lex
