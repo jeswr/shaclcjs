@@ -1,0 +1,13 @@
+@base <http://example.org/iri-with-equals> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+
+<http://example.org/iri-with-equals>
+	a owl:Ontology ;
+.
+
+<http://example.org/shape?version=1>
+	a sh:NodeShape ;
+	sh:targetClass <http://example.org/Class?a=b> ;
+.

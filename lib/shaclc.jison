@@ -151,7 +151,9 @@
 PASS                    [ \t\r\n]+ -> skip
 COMMENT                 '#' ~[\r\n]* -> skip
 
-IRIREF                  '<' (~[^=<>\"\{\}\|\^`\\\u0000-\u0020] | {UCHAR})* '>'
+// [^...] rather than the previous ~[^=...]: the ANTLR-style negation (~) is not
+// jison-lex syntax (it was silently dropped), and '=' is a legal IRI character
+IRIREF                  '<' ([^<>\"\{\}\|\^`\\\u0000-\u0020] | {UCHAR})* '>'
 PNAME_NS                {PN_PREFIX}? ':'
 PNAME_LN                {PNAME_NS} {PN_LOCAL}
 ATPNAME_NS              '@' {PN_PREFIX}? ':'
