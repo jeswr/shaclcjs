@@ -51,6 +51,7 @@
         return Parser.factory.namedNode(RDF_NIL)
       }
 
+      let head;
       const list = head = blank();
 
       if (l === 0) {

@@ -47,6 +47,19 @@ describe('Testing each extended conformance file', () => {
   });
 });
 
+describe('Testing global scope hygiene', () => {
+  it('should not leak a global "head" variable when emitting RDF lists', () => {
+    parse(`
+    PREFIX ex: <http://example.org/test#>
+
+    shape ex:TestShape {
+      ex:property in=[ex:Instance1 true "string" 42] .
+    }
+    `);
+    expect(globalThis.head).toBeUndefined();
+  });
+});
+
 describe('Testing relative IRIs', () => {
   it('should use the provided baseIRI to resolve relative IRIs', () => {
     expect(parse(`
